@@ -11,7 +11,8 @@ import {
   drawMosaku,
   drawPineTree,
   drawSnake,
-  HITS_TO_FELL_SIDE,
+  HITS_PER_SIDE,
+  TREE_BLINK_TIME,
 } from './cvDraw'
 import { STAGES, type StageConfig } from './stages'
 import { TitleScene } from './title'
@@ -144,9 +145,9 @@ export class MosakuGame implements Scene {
     this.hazards = []
     this.birdX = 20
     this.birdDir = 1
-    this.snakeTimer = this.stage.snakeInterval * 0.5
-    this.boarTimer = this.stage.boarInterval * 0.7
-    this.birdTimer = this.stage.birdInterval * 0.4
+    this.snakeTimer = this.stage.snakeInterval * 0.9
+    this.boarTimer = this.stage.boarInterval * 1.0
+    this.birdTimer = this.stage.birdInterval * 0.85
     this.phase = 'play'
     this.phaseT = 0
     if (this.mode === 'timeattack') {
@@ -293,11 +294,11 @@ export class MosakuGame implements Scene {
     this.checkCollisions()
 
     for (const t of this.trees) {
-      if (t.fallen && t.fallT < 1) t.fallT += dt * 1.2
+      if (t.fallen && t.fallT < TREE_BLINK_TIME) t.fallT += dt
     }
 
-    // Both trees carved from both sides and gone → stage clear
-    if (this.trees.every((t) => t.fallen && t.fallT >= 0.55)) {
+    // Both trees blinked out → stage clear
+    if (this.trees.every((t) => t.fallen && t.fallT >= TREE_BLINK_TIME)) {
       this.phase = 'clear'
       this.phaseT = 0
       sound.clear()
@@ -339,19 +340,22 @@ export class MosakuGame implements Scene {
 
       const fromLeft = this.px + PLAYER_W / 2 < trunk
       if (fromLeft) {
-        if (tree.leftHits < HITS_TO_FELL_SIDE) {
+        // 片側は半分までしか切れない
+        if (tree.leftHits < HITS_PER_SIDE) {
           tree.leftHits++
           this.score += 10
         }
-      } else if (tree.rightHits < HITS_TO_FELL_SIDE) {
-        tree.rightHits++
-        this.score += 10
+      } else if (tree.rightHits < HITS_PER_SIDE) {
+        if (tree.rightHits < HITS_PER_SIDE) {
+          tree.rightHits++
+          this.score += 10
+        }
       }
 
-      // Both sides carved through → tree falls away and disappears
+      // 両側とも半分まで削れたら点滅して消える
       if (
-        tree.leftHits >= HITS_TO_FELL_SIDE &&
-        tree.rightHits >= HITS_TO_FELL_SIDE &&
+        tree.leftHits >= HITS_PER_SIDE &&
+        tree.rightHits >= HITS_PER_SIDE &&
         !tree.fallen
       ) {
         tree.fallen = true

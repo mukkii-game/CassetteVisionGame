@@ -19,7 +19,10 @@ export const C = {
   cut: 2,
 } as const
 
-export const HITS_TO_FELL_SIDE = 7
+/** Hits to carve halfway through from one side (片側は半分までしか切れない) */
+export const HITS_PER_SIDE = 7
+/** Blink-out duration after both halves are cut */
+export const TREE_BLINK_TIME = 0.85
 
 /**
  * Draw Mosaku as solid orange silhouette + cyan axe stick (CV look).
@@ -118,9 +121,8 @@ export function drawBird(r: Renderer, x: number, y: number, flap: boolean): void
 
 /**
  * Yosaku-style pine:
- * - Chop the BASE from left / right (actually carve wood away — no red/orange tally marks)
- * - Several hits deepen that side's cut until the side is severed
- * - Both sides severed → tree tips over then vanishes
+ * - Carve BASE from left / right; each side only reaches the center (半分まで)
+ * - When BOTH sides reach half → blink then vanish
  */
 export function drawPineTree(
   r: Renderer,
@@ -132,43 +134,39 @@ export function drawPineTree(
   fallT: number,
 ): void {
   const cx = trunkX + 3
-  const trunkW = 5
+  const trunkW = 6
   const trunkLeft = trunkX + 1
   const canopyBottom = 25
   const chopTop = groundY - 10
   const chopH = groundY - chopTop
+  const halfW = trunkW / 2
 
-  // Gone after fall animation
-  if (fallen && fallT >= 0.55) return
+  // Gone after blink-out
+  if (fallen && fallT >= TREE_BLINK_TIME) return
 
+  // Blink: show/hide whole tree while vanishing
   if (fallen) {
-    // Brief tip-over then disappear
-    const lean = Math.floor(Math.min(1, fallT / 0.55) * 18)
-    const dir = leftHits >= rightHits ? 1 : -1
-    r.fillPine(cx + lean * dir, groundY - 12, 8, 9, C.foliage)
-    r.fillRect(trunkLeft + lean * dir, groundY - 4, 10, 3, C.trunk)
-    return
+    const flash = Math.floor(fallT * 12) % 2 === 0
+    if (!flash) return
   }
 
   // Canopy (two stacked ⊿)
   r.fillPine(cx, 6, 8, 10, C.foliage)
   r.fillPine(cx, 14, 10, 11, C.foliage)
 
-  // Upper trunk (uncut)
+  // Upper trunk
   r.fillRect(trunkLeft, canopyBottom, trunkW, chopTop - canopyBottom, C.trunk)
 
-  // Base trunk — carve from sides with smooth wedges (sky punches)
+  // Base trunk
   r.fillRect(trunkLeft, chopTop, trunkW, chopH, C.trunk)
 
-  const max = HITS_TO_FELL_SIDE
-  // Depth into trunk from each side (0 .. trunkW/2+, full side when hits max)
-  const leftDepth = (Math.min(leftHits, max) / max) * (trunkW * 0.55 + 0.5)
-  const rightDepth = (Math.min(rightHits, max) / max) * (trunkW * 0.55 + 0.5)
+  const max = HITS_PER_SIDE
+  // Each side max depth = exactly half the trunk (cannot cut through alone)
+  const leftDepth = (Math.min(leftHits, max) / max) * halfW
+  const rightDepth = (Math.min(rightHits, max) / max) * halfW
 
-  // Left axe bites: triangular notch eating into base from the left
   if (leftHits > 0) {
-    const d = Math.max(1.2, leftDepth)
-    // upper bite + lower bite → V cut from left
+    const d = Math.max(0.8, leftDepth)
     r.fillTriangle(
       trunkLeft - 0.5,
       chopTop + 1,
@@ -178,13 +176,11 @@ export function drawPineTree(
       chopTop + chopH - 1,
       C.sky,
     )
-    // deepen: also clear a rect band so wood is truly gone
     r.fillRect(trunkLeft, chopTop + 2, Math.ceil(d), chopH - 4, C.sky)
   }
 
-  // Right axe bites
   if (rightHits > 0) {
-    const d = Math.max(1.2, rightDepth)
+    const d = Math.max(0.8, rightDepth)
     const right = trunkLeft + trunkW
     r.fillTriangle(
       right + 0.5,
@@ -198,12 +194,13 @@ export function drawPineTree(
     r.fillRect(right - Math.ceil(d), chopTop + 2, Math.ceil(d), chopH - 4, C.sky)
   }
 
-  // Side fully severed: clear that half of the base completely
+  // Half from left complete → left half of base gone (center remains until right also done)
   if (leftHits >= max) {
-    r.fillRect(trunkLeft, chopTop, Math.ceil(trunkW / 2), chopH, C.sky)
+    r.fillRect(trunkLeft, chopTop, Math.floor(halfW), chopH, C.sky)
   }
+  // Half from right complete
   if (rightHits >= max) {
-    r.fillRect(trunkLeft + Math.floor(trunkW / 2), chopTop, Math.ceil(trunkW / 2), chopH, C.sky)
+    r.fillRect(trunkLeft + Math.ceil(halfW), chopTop, Math.floor(halfW), chopH, C.sky)
   }
 }
 
