@@ -29,8 +29,24 @@ export class Sound {
     o.stop(ctx.currentTime + dur)
   }
 
+  /** Swing whoosh (miss or start) */
   chop(): void {
-    this.beep(180, 0.06, 'square', 0.1)
+    this.beep(140, 0.05, 'triangle', 0.05)
+  }
+
+  /** Wood actually carved */
+  chopHit(): void {
+    if (this.muted) return
+    this.beep(220, 0.05, 'square', 0.11)
+    setTimeout(() => this.beep(90, 0.08, 'sawtooth', 0.08), 40)
+  }
+
+  /** Tree finished (both halves) — blink vanish */
+  treeGone(): void {
+    if (this.muted) return
+    this.beep(160, 0.08, 'square', 0.1)
+    setTimeout(() => this.beep(120, 0.12, 'triangle', 0.09), 70)
+    setTimeout(() => this.beep(70, 0.22, 'sawtooth', 0.07), 160)
   }
 
   jump(): void {

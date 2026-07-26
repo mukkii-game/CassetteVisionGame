@@ -329,26 +329,31 @@ export class MosakuGame implements Scene {
     // Hit near the BASE of the trunk (削るのは根本)
     const axeX = this.facing === 1 ? this.px + 9 : this.px - 2
     const axeY = this.playerY() + this.jumpOffset + 6
+    const { sound } = this.eng
     for (const tree of this.trees) {
       if (tree.fallen) continue
       const trunk = tree.x + 3
       const dist = Math.abs(axeX - trunk)
-      // sweet spot — too close / too far fails (Yosaku)
-      if (dist < 2.5 || dist > 12) continue
+      // もう少し近くからでないと切れない
+      if (dist < 3 || dist > 7.5) continue
       // must swing near the stump / base, not the canopy
       if (axeY < GROUND_Y - 14) continue
 
+      let carved = false
       const fromLeft = this.px + PLAYER_W / 2 < trunk
       if (fromLeft) {
-        // 片側は半分までしか切れない
         if (tree.leftHits < HITS_PER_SIDE) {
           tree.leftHits++
           this.score += 10
+          carved = true
         }
       } else if (tree.rightHits < HITS_PER_SIDE) {
         tree.rightHits++
         this.score += 10
+        carved = true
       }
+
+      if (carved) sound.chopHit()
 
       // 両側とも半分まで削れたら点滅して消える
       if (
@@ -359,9 +364,10 @@ export class MosakuGame implements Scene {
         tree.fallen = true
         tree.fallT = 0
         this.score += 100
+        sound.treeGone()
       }
 
-      if (Math.random() < this.stage.branchChance) {
+      if (carved && Math.random() < this.stage.branchChance) {
         this.hazards.push({
           kind: 'branch',
           x: trunk - 2,
