@@ -3,6 +3,8 @@ import { LOGICAL_H, LOGICAL_W, type Scene } from '../../engine/types'
 import { scriptAfterStage } from './adv'
 import { AdvScene } from './advScene'
 import {
+  axeTipX,
+  axeTipY,
   C,
   drawBird,
   drawBoar,
@@ -12,17 +14,23 @@ import {
   drawPineTree,
   drawSnake,
   HITS_PER_SIDE,
+  MOSAKU_H,
+  MOSAKU_W,
   TREE_BLINK_TIME,
+  TRUNK_W,
 } from './cvDraw'
 import { STAGES, type StageConfig } from './stages'
 import { TitleScene } from './title'
 
 /** Ground band like CV screenshot (~bottom fifth of 75×60) */
 const GROUND_Y = 48
-const PLAYER_W = 7
-const PLAYER_H = 7
+const PLAYER_W = MOSAKU_W
+const PLAYER_H = MOSAKU_H
 const STUN_TIME = 5
 const START_LIVES = 6
+/** tip-to-face distance — 1dot looser than before */
+const CHOP_MAX_DIST = 4.5
+const CHOP_MIN_DIST = 0
 
 /** Chop phases tuned like Yosaku: lag → swing hit → recover (enemy window) */
 const CHOP_UP = 0.12
@@ -307,7 +315,7 @@ export class MosakuGame implements Scene {
   }
 
   private playerY(): number {
-    return GROUND_Y - PLAYER_H + 1
+    return GROUND_Y - PLAYER_H
   }
 
   private applyJump(dt: number): void {
@@ -326,21 +334,27 @@ export class MosakuGame implements Scene {
   }
 
   private tryChop(): void {
-    // Chop the ground-contact dots of the trunk only
-    const axeX = this.facing === 1 ? this.px + 7 : this.px - 1
-    const axeY = this.playerY() + this.jumpOffset + 5
+    // Tip position matches drawMosaku (左右対称)
+    const tipX = axeTipX(this.px, this.facing)
+    const tipY = axeTipY(this.playerY() + this.jumpOffset, 'down')
     const { sound } = this.eng
     for (const tree of this.trees) {
       if (tree.fallen) continue
-      const trunk = tree.x + 2
-      const dist = Math.abs(axeX - trunk)
-      // close range only
-      if (dist < 2.5 || dist > 7) continue
-      // must hit at ground line (not higher up the trunk)
-      if (axeY < GROUND_Y - 6 || axeY > GROUND_Y + 1) continue
+      const trunkLeft = tree.x
+      const trunkRight = tree.x + TRUNK_W - 1
+      const trunkMid = trunkLeft + TRUNK_W / 2
+      // stand left → hit left face; stand right → hit right face
+      const fromLeft = this.px + PLAYER_W / 2 < trunkMid
+      const faceX = fromLeft ? trunkLeft : trunkRight
+      const dist = Math.abs(tipX - faceX)
+      if (dist < CHOP_MIN_DIST || dist > CHOP_MAX_DIST) continue
+      // tip near ground contact
+      if (tipY < GROUND_Y - 5 || tipY > GROUND_Y + 2) continue
+      // must face the tree
+      if (fromLeft && this.facing !== 1) continue
+      if (!fromLeft && this.facing !== -1) continue
 
       let carved = false
-      const fromLeft = this.px + PLAYER_W / 2 < trunk
       if (fromLeft) {
         if (tree.leftHits < HITS_PER_SIDE) {
           tree.leftHits++
@@ -369,7 +383,7 @@ export class MosakuGame implements Scene {
       if (carved && Math.random() < this.stage.branchChance) {
         this.hazards.push({
           kind: 'branch',
-          x: trunk - 1,
+          x: trunkMid - 1,
           y: 8,
           vy: 22 + Math.random() * 14,
         })
@@ -445,13 +459,13 @@ export class MosakuGame implements Scene {
 
       const canHitEnemy = this.chopPhase === 'down' || this.chopPhase === 'back'
       if (canHitEnemy) {
-        const axeX = this.facing === 1 ? this.px + 7 : this.px - 1
-        const ay = this.playerY() + this.jumpOffset + 3
+        const tipX = axeTipX(this.px, this.facing)
+        const tipY = axeTipY(this.playerY() + this.jumpOffset, this.chopPhase)
         const ew = e.kind === 'boar' ? 8 : 4
         const eh = e.kind === 'boar' ? 5 : 6
         if (
-          Math.abs(axeX - (e.x + ew / 2)) < 6 &&
-          Math.abs(ay - (e.y + eh / 2)) < 8 &&
+          Math.abs(tipX - (e.x + ew / 2)) < 7 &&
+          Math.abs(tipY - (e.y + eh / 2)) < 9 &&
           (e.kind !== 'snake' || e.emerge > 0.35)
         ) {
           e.alive = false
@@ -571,7 +585,7 @@ export class MosakuGame implements Scene {
     if (this.chopPhase === 'down') return 'down'
     if (this.chopPhase === 'back') return 'back'
     if (this.moving) return Math.floor(this.walkT * 8) % 2 === 0 ? 'walk0' : 'walk1'
-    return 'idle'
+    return 'idle' // 振りかぶり
   }
 
   draw(): void {
