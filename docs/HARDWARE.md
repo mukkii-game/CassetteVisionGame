@@ -7,7 +7,7 @@
 | Item | Value |
 |------|-------|
 | Logical resolution | 75 × 60（座標・ゲームロジック） |
-| Upscale | 整数倍。矩形はニアレスト、**三角／斜線／平行四辺形は表示解像度で滑らかに描画** |
+| Upscale | 整数倍ニアレスト。与作スクショ準拠でキャラ・木は**階段ドット**（大きなベタは避ける） |
 | Colors | 8 fixed palette entries |
 
 ## Palette (Yosaku-like vivid 8)

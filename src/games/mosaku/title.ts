@@ -60,11 +60,11 @@ export class TitleScene implements Scene {
 
   draw(): void {
     const r = this.eng.renderer
-    const groundY = 40
+    const groundY = 48
     r.clear(C.sky)
     r.fillRect(0, groundY, LOGICAL_W, LOGICAL_H - groundY, C.ground)
-    drawPineTree(r, 18, groundY, 0, 0, false, 0)
-    drawPineTree(r, 52, groundY, 0, 0, false, 0)
+    drawPineTree(r, 16, groundY, 0, 0, false, 0)
+    drawPineTree(r, 54, groundY, 0, 0, false, 0)
 
     if (this.extras.ending) {
       r.drawText('MOSAKU', 24, 4, C.hudCyan)
@@ -72,10 +72,10 @@ export class TitleScene implements Scene {
       r.drawText(`S${this.extras.score ?? 0}`, 22, 20, C.mosaku)
       drawMosaku(r, 28, 28, 1, 'idle')
       if (this.extras.flags?.has('date')) {
-        r.fillRect(40, 30, 5, 5, C.cut)
+        r.fillRect(40, 30, 5, 5, C.cutDeep)
         r.drawText('DATE', 48, 32, C.boar)
       } else if (this.extras.flags?.has('cursed')) {
-        r.drawText('CURSED', 42, 32, C.cut)
+        r.drawText('CURSED', 42, 32, C.cutDeep)
       }
       if (Math.floor(this.blink * 2) % 2 === 0) r.drawText('ENTER', 28, 52, C.hudCyan)
       return

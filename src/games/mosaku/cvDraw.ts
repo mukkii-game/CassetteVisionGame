@@ -1,32 +1,30 @@
 import type { Renderer } from '../../engine/renderer'
 
-/** Colors matching Yosaku screenshot: 1-color bodies */
+/** Screenshot-matched colors */
 export const C = {
   sky: 0,
   ground: 4,
-  foliage: 4,
-  trunk: 7,
+  canopy: 6, // orange-yellow stepped foliage
+  trunk: 7, // pale
   mosaku: 6,
   axe: 5,
   boar: 3,
-  snake: 4,
+  snake: 3,
   bird: 5,
-  drop: 3,
+  drop: 6,
   branch: 7,
   angel: 7,
   hudCyan: 5,
   hudGreen: 4,
-  cut: 2,
+  cutLite: 6, // first cuts — orange
+  cutDeep: 2, // deeper — red
 } as const
 
-/** Hits to carve halfway through from one side (片側は半分までしか切れない) */
-export const HITS_PER_SIDE = 7
-/** Blink-out duration after both halves are cut */
+/** 5 hits = half trunk from one side */
+export const HITS_PER_SIDE = 5
 export const TREE_BLINK_TIME = 0.85
 
-/**
- * Draw Mosaku as solid orange silhouette + cyan axe stick (CV look).
- */
+/** Compact 7×7-ish Mosaku (CV sprite scale) */
 export function drawMosaku(
   r: Renderer,
   x: number,
@@ -39,90 +37,97 @@ export function drawMosaku(
   const axe = C.axe
 
   if (phase === 'angel') {
-    r.drawDiagThick(x - 2, y + 1, 4, 2, -1, C.angel)
-    r.drawDiagThick(x + 6, y + 1, 4, 2, 1, C.angel)
-    r.fillRect(x + 2, y + 2, 4, 6, C.angel)
+    r.fillRect(x + 1, y + 1, 5, 5, C.angel)
+    r.fillRect(x, y + 2, 1, 2, C.angel)
+    r.fillRect(x + 6, y + 2, 1, 2, C.angel)
     return
   }
 
-  r.fillRect(x + 2, y, 4, 3, body)
-  r.fillRect(x + 1, y + 3, 6, 3, body)
+  // head 3×2
+  r.fillRect(x + 2, y, 3, 2, body)
+  // torso
+  r.fillRect(x + 1, y + 2, 5, 2, body)
 
   if (phase === 'jump') {
-    r.fillRect(x + 2, y + 6, 2, 2, body)
-    r.fillRect(x + 5, y + 6, 2, 2, body)
+    r.fillRect(x + 2, y + 4, 1, 2, body)
+    r.fillRect(x + 4, y + 4, 1, 2, body)
   } else if (phase === 'walk1') {
-    r.fillRect(x + 1, y + 6, 2, 3, body)
-    r.fillRect(x + 5, y + 6, 2, 2, body)
+    r.fillRect(x + 1, y + 4, 1, 3, body)
+    r.fillRect(x + 4, y + 4, 1, 2, body)
   } else if (phase === 'walk0') {
-    r.fillRect(x + 2, y + 6, 2, 2, body)
-    r.fillRect(x + 5, y + 6, 2, 3, body)
+    r.fillRect(x + 2, y + 4, 1, 2, body)
+    r.fillRect(x + 5, y + 4, 1, 3, body)
   } else {
-    r.fillRect(x + 1, y + 6, 2, 3, body)
-    r.fillRect(x + 5, y + 6, 2, 3, body)
+    r.fillRect(x + 1, y + 4, 1, 3, body)
+    r.fillRect(x + 5, y + 4, 1, 3, body)
   }
 
+  // cyan axe
   if (phase === 'up') {
-    const ax = f === 1 ? x - 1 : x + 7
-    r.fillRect(ax, y - 2, 2, 5, axe)
+    const ax = f === 1 ? x : x + 6
+    r.fillRect(ax, y - 1, 1, 4, axe)
   } else if (phase === 'down') {
-    const ax = f === 1 ? x + 7 : x - 2
-    r.fillRect(ax, y + 3, 2, 5, axe)
-    r.fillRect(ax + (f === 1 ? 0 : -1), y + 7, 3, 2, axe)
+    const ax = f === 1 ? x + 6 : x
+    r.fillRect(ax, y + 3, 1, 3, axe)
+    r.fillRect(ax + (f === 1 ? 0 : -1), y + 5, 2, 1, axe)
   } else if (phase === 'back') {
-    const ax = f === 1 ? x + 6 : x - 1
-    r.fillRect(ax, y + 1, 2, 4, axe)
+    const ax = f === 1 ? x + 6 : x
+    r.fillRect(ax, y + 1, 1, 3, axe)
   } else {
-    const ax = f === 1 ? x + 7 : x - 1
-    r.fillRect(ax, y + 1, 2, 6, axe)
+    // L-shaped axe in front (screenshot)
+    const ax = f === 1 ? x + 6 : x
+    r.fillRect(ax, y + 1, 1, 4, axe)
+    r.fillRect(ax + (f === 1 ? 0 : -1), y + 4, 2, 1, axe)
   }
 
-  if (phase === 'stun') {
-    r.fillRect(x + 3, y - 3, 1, 2, C.hudCyan)
-  }
+  if (phase === 'stun') r.fillRect(x + 3, y - 2, 1, 1, C.hudCyan)
 }
 
 export function drawBoar(r: Renderer, x: number, y: number, facingLeft: boolean): void {
   const c = C.boar
-  const skew = facingLeft ? -3 : 3
-  r.fillParallelogram(x + (facingLeft ? 3 : 0), y + 1, 8, 4, skew, c)
+  // compact 1-color boar ~8×5
+  r.fillRect(x + 1, y + 1, 6, 3, c)
   if (facingLeft) {
-    r.drawDiagThick(x + 1, y + 2, 3, 2, -1, c)
+    r.fillRect(x, y + 2, 2, 2, c)
   } else {
-    r.drawDiagThick(x + 9, y + 2, 3, 2, 1, c)
+    r.fillRect(x + 6, y + 2, 2, 2, c)
   }
-  r.fillRect(x + 2, y + 5, 2, 2, c)
-  r.fillRect(x + 7, y + 5, 2, 2, c)
+  r.fillRect(x + 2, y + 4, 1, 1, c)
+  r.fillRect(x + 5, y + 4, 1, 1, c)
 }
 
-export function drawSnake(r: Renderer, x: number, y: number, emerging: boolean): void {
+/**
+ * Mamushi: jagged magenta stack rising from underground (screenshot sawtooth).
+ * emerge 0..1 = how far out of the ground
+ */
+export function drawSnake(r: Renderer, x: number, y: number, emerge: number): void {
   const c = C.snake
-  if (emerging) {
-    r.fillParallelogram(x + 1, y + 2, 5, 3, 2, c)
-    r.fillRect(x + 2, y + 4, 4, 1, 7)
-    return
+  const h = Math.max(1, Math.floor(emerge * 6))
+  // stacked right-pointing teeth (like screenshot)
+  for (let i = 0; i < h; i++) {
+    const py = y + (6 - h) + i
+    const w = 1 + (i % 3 === 0 ? 2 : 1)
+    r.fillRect(x, py, w, 1, c)
+    if (i % 2 === 0) r.fillRect(x + w, py, 1, 1, c)
+    else r.fillRect(x - 1, py, 1, 1, 0) // notch
   }
-  r.drawDiagThick(x, y + 1, 4, 2, 1, c)
-  r.fillRect(x + 3, y + 3, 4, 2, c)
-  r.drawDiagThick(x + 6, y + 2, 3, 2, -1, c)
 }
 
 export function drawBird(r: Renderer, x: number, y: number, flap: boolean): void {
   const c = C.bird
-  r.fillRect(x + 2, y + 1, 3, 2, c)
+  r.fillRect(x + 1, y + 1, 2, 1, c)
   if (flap) {
-    r.drawDiagThick(x - 1, y + 1, 3, 2, 1, c)
-    r.drawDiagThick(x + 5, y + 1, 3, 2, -1, c)
+    r.fillRect(x, y, 1, 1, c)
+    r.fillRect(x + 3, y, 1, 1, c)
   } else {
-    r.fillRect(x, y + 2, 2, 1, c)
-    r.fillRect(x + 5, y + 2, 2, 1, c)
+    r.fillRect(x, y + 1, 1, 1, c)
+    r.fillRect(x + 3, y + 1, 1, 1, c)
   }
 }
 
 /**
- * Yosaku-style pine:
- * - Carve BASE from left / right; each side only reaches the center (半分まで)
- * - When BOTH sides reach half → blink then vanish
+ * Stepped canopy (not smooth ⊿) + pale trunk — match CV screenshot density.
+ * Cuts: recolor ground-contact dots only (5 hits → half side).
  */
 export function drawPineTree(
   r: Renderer,
@@ -133,82 +138,62 @@ export function drawPineTree(
   fallen: boolean,
   fallT: number,
 ): void {
-  const cx = trunkX + 3
-  const trunkW = 6
-  const trunkLeft = trunkX + 1
-  const canopyBottom = 25
-  const chopTop = groundY - 10
-  const chopH = groundY - chopTop
-  const halfW = trunkW / 2
+  const trunkW = 4
+  const trunkLeft = trunkX
+  const cx = trunkLeft + Math.floor(trunkW / 2)
 
-  // Gone after blink-out
   if (fallen && fallT >= TREE_BLINK_TIME) return
+  if (fallen && Math.floor(fallT * 12) % 2 !== 0) return
 
-  // Blink: show/hide whole tree while vanishing
-  if (fallen) {
-    const flash = Math.floor(fallT * 12) % 2 === 0
-    if (!flash) return
-  }
+  // Stepped orange canopy (mushroom / trapezoid — stair-step edges)
+  // top flat
+  r.fillRect(cx - 3, 8, 7, 2, C.canopy)
+  r.fillRect(cx - 4, 10, 9, 2, C.canopy)
+  r.fillRect(cx - 5, 12, 11, 2, C.canopy)
+  r.fillRect(cx - 6, 14, 13, 3, C.canopy)
 
-  // Canopy (two stacked ⊿)
-  r.fillPine(cx, 6, 8, 10, C.foliage)
-  r.fillPine(cx, 14, 10, 11, C.foliage)
+  // pale trunk down to ground
+  const trunkTop = 17
+  r.fillRect(trunkLeft, trunkTop, trunkW, groundY - trunkTop, C.trunk)
 
-  // Upper trunk
-  r.fillRect(trunkLeft, canopyBottom, trunkW, chopTop - canopyBottom, C.trunk)
-
-  // Base trunk
-  r.fillRect(trunkLeft, chopTop, trunkW, chopH, C.trunk)
-
+  // --- Chop zone: ONLY the ground-contact row(s) ---
   const max = HITS_PER_SIDE
-  // Each side max depth = exactly half the trunk (cannot cut through alone)
-  const leftDepth = (Math.min(leftHits, max) / max) * halfW
-  const rightDepth = (Math.min(rightHits, max) / max) * halfW
+  const half = Math.floor(trunkW / 2) // 2 px each side for trunkW=4
+  const baseY = groundY - 1 // 地面と接するドット
 
-  if (leftHits > 0) {
-    const d = Math.max(0.8, leftDepth)
-    r.fillTriangle(
-      trunkLeft - 0.5,
-      chopTop + 1,
-      trunkLeft + d,
-      chopTop + chopH * 0.45,
-      trunkLeft - 0.5,
-      chopTop + chopH - 1,
-      C.sky,
-    )
-    r.fillRect(trunkLeft, chopTop + 2, Math.ceil(d), chopH - 4, C.sky)
+  // Left half: recolor progressively (pale → orange → red)
+  for (let i = 0; i < half; i++) {
+    const threshold = Math.ceil(((i + 1) * max) / half)
+    if (leftHits >= threshold) {
+      const deep = leftHits >= max || leftHits >= threshold + 1
+      r.fillRect(trunkLeft + i, baseY, 1, 1, deep ? C.cutDeep : C.cutLite)
+      // slight second row just above contact for readability
+      if (leftHits >= 2) {
+        r.fillRect(trunkLeft + i, baseY - 1, 1, 1, deep ? C.cutDeep : C.cutLite)
+      }
+    }
   }
 
-  if (rightHits > 0) {
-    const d = Math.max(0.8, rightDepth)
-    const right = trunkLeft + trunkW
-    r.fillTriangle(
-      right + 0.5,
-      chopTop + 1,
-      right - d,
-      chopTop + chopH * 0.45,
-      right + 0.5,
-      chopTop + chopH - 1,
-      C.sky,
-    )
-    r.fillRect(right - Math.ceil(d), chopTop + 2, Math.ceil(d), chopH - 4, C.sky)
-  }
-
-  // Half from left complete → left half of base gone (center remains until right also done)
-  if (leftHits >= max) {
-    r.fillRect(trunkLeft, chopTop, Math.floor(halfW), chopH, C.sky)
-  }
-  // Half from right complete
-  if (rightHits >= max) {
-    r.fillRect(trunkLeft + Math.ceil(halfW), chopTop, Math.floor(halfW), chopH, C.sky)
+  // Right half
+  for (let i = 0; i < half; i++) {
+    const threshold = Math.ceil(((i + 1) * max) / half)
+    if (rightHits >= threshold) {
+      const deep = rightHits >= max || rightHits >= threshold + 1
+      const px = trunkLeft + trunkW - 1 - i
+      r.fillRect(px, baseY, 1, 1, deep ? C.cutDeep : C.cutLite)
+      if (rightHits >= 2) {
+        r.fillRect(px, baseY - 1, 1, 1, deep ? C.cutDeep : C.cutLite)
+      }
+    }
   }
 }
 
 export function drawDrop(r: Renderer, x: number, y: number): void {
-  r.drawDiagThick(x, y, 3, 2, 1, C.drop)
-  r.setPixel(x + 2, y + 1, C.bird)
+  r.fillRect(x, y, 1, 1, C.drop)
+  r.fillRect(x, y + 1, 1, 1, C.cutDeep)
 }
 
 export function drawBranch(r: Renderer, x: number, y: number): void {
-  r.drawDiagThick(x, y, 4, 2, 1, C.branch)
+  r.fillRect(x, y, 3, 1, C.branch)
+  r.fillRect(x + 1, y + 1, 2, 1, C.branch)
 }
