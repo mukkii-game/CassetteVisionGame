@@ -346,10 +346,8 @@ export class MosakuGame implements Scene {
           this.score += 10
         }
       } else if (tree.rightHits < HITS_PER_SIDE) {
-        if (tree.rightHits < HITS_PER_SIDE) {
-          tree.rightHits++
-          this.score += 10
-        }
+        tree.rightHits++
+        this.score += 10
       }
 
       // 両側とも半分まで削れたら点滅して消える
