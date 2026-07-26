@@ -15,11 +15,10 @@ app.innerHTML = `
     <canvas id="screen" width="75" height="60" aria-label="Game screen"></canvas>
     <div id="touch-root"></div>
     <footer class="help">
-      <span>←→ Move</span>
-      <span>Z Axe</span>
-      <span>X / Space Jump</span>
+      <span>A/D / ←→ Move</span>
+      <span>Mouse L / F Axe</span>
+      <span>Mouse R / Space / W Jump</span>
       <span>Enter Start</span>
-      <span>Pad OK</span>
     </footer>
   </div>
 `

@@ -9,14 +9,16 @@
 
 ## Controls
 
-| Action | Keyboard | Gamepad |
-|--------|----------|---------|
-| Move | ←→ / A D | D-pad / stick |
-| Axe | Z / J | A |
-| Jump | X / K / Space | B |
+| Action | Keyboard / Mouse | Gamepad |
+|--------|------------------|---------|
+| Move | A D / ←→ | D-pad / stick |
+| Axe | **Left click** / F | A |
+| Jump | **Right click** / Space / W | B |
 | Start | Enter | Start |
 
 On phones, on-screen buttons appear automatically.
+
+参考プレイ映像: [きこりの与作（カセットビジョン）](https://youtu.be/HpaIb2Ptygs)
 
 ## Build / Deploy
 

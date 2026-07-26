@@ -36,14 +36,17 @@ Index 6 is the orange accent; index 5 covers blue-cyan.
 
 ## Input (abstract)
 
-| Action | Keyboard default | Gamepad |
+| Action | Keyboard / Mouse | Gamepad |
 |--------|------------------|---------|
-| Left | ← / A | D-pad / stick left |
-| Right | → / D | D-pad / stick right |
-| Axe | Z / J | Button A (0) |
-| Jump | X / K / Space | Button B (1) |
+| Left | A / ← | D-pad / stick left |
+| Right | D / → | D-pad / stick right |
+| Axe | **Mouse L** / F (N, J, Z legacy) | Button A (0) |
+| Jump | **Mouse R** / Space / W (M, X) | Button B (1) |
 | Start | Enter | Start (9) |
-| Select | Shift | Select (8) |
+| Select | Shift / Esc | Select (8) |
+
+PC推奨: WASD移動 + 左クリック斧 + 右クリック／Spaceジャンプ。  
+N/M は遠いので主入力にはしない（補助のみ）。
 
 ## Audio
 

@@ -1,7 +1,7 @@
 import type { CVEngine } from '../../engine/engine'
 import { LOGICAL_W, type Scene } from '../../engine/types'
 import { MosakuGame } from './game'
-import { HEART, MOSAKU, TORIKO } from './sprites'
+import { HEART, MOSAKU_IDLE, TORIKO } from './sprites'
 
 export interface TitleExtras {
   taResult?: number
@@ -72,7 +72,7 @@ export class TitleScene implements Scene {
       if (this.extras.flags?.has('date')) {
         r.drawSprite(TORIKO, 20, 32)
         r.drawSprite(HEART, 34, 34)
-        r.drawSprite(MOSAKU, 46, 32)
+        r.drawSprite(MOSAKU_IDLE, 44, 30)
         r.drawText('DATE?', 28, 42, 3)
       } else if (this.extras.flags?.has('cursed')) {
         r.drawText('THE WOOD', 20, 34, 2)
@@ -86,14 +86,15 @@ export class TitleScene implements Scene {
 
     r.drawText('MOSAKU', 24, 6, 7)
     r.drawText('CV SOFT', 22, 13, 5)
-    r.drawSprite(MOSAKU, 18, 22)
+    r.drawSprite(MOSAKU_IDLE, 16, 20)
     r.drawSprite(TORIKO, 50, 22)
 
     if (this.showHelp) {
-      r.fillRect(4, 32, 67, 24, 0)
-      r.drawText('Z AXE', 8, 34, 7)
-      r.drawText('X JUMP', 8, 40, 7)
-      r.drawText('ARROWS MOVE', 8, 46, 7)
+      r.fillRect(2, 32, 71, 26, 0)
+      r.drawText('AD MOVE', 4, 34, 7)
+      r.drawText('L-CLICK AXE', 4, 40, 7)
+      r.drawText('R-CLICK JUMP', 4, 46, 7)
+      r.drawText('F/SPACE OK', 4, 52, 5)
       return
     }
 

@@ -15,6 +15,7 @@ export class CVEngine {
   constructor(screen: HTMLCanvasElement) {
     this.renderer = new Renderer(screen)
     this.input = new Input()
+    this.input.bindMouse(screen)
     this.sound = new Sound()
   }
 

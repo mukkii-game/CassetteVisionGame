@@ -27,3 +27,12 @@
 ## Controls
 
 `docs/HARDWARE.md` の入力表に従う。
+
+PC推奨: **A/D 移動・左クリック斧・右クリック／Space ジャンプ**。  
+（Zは使いにくい。N/Mも遠いので主入力にしない。F をキーボード斧の予備に。）
+
+## Animation
+
+茂作は idle / walk2 / chop(上げ→振り下ろし→戻し) / jump / stun を切替。  
+斧ヒットは振り下ろし開始時、敵ヒットは振り下ろし〜戻し（与作の戻り斧判定に寄せる）。  
+参考: [きこりの与作プレイ動画](https://youtu.be/HpaIb2Ptygs)

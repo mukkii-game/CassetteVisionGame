@@ -31,10 +31,15 @@
 
 ## 次アクション
 
-1. 実プレイで難易度・斧の距離感を調整
+1. 実プレイで斧距離・敵速度を動画寄りに再調整
 2. ADVテキストの日本語化（現状は3x5英語フォント）
-3. ゲーム会前にリポジトリ public 化と Pages URL 確認
-4. 必要なら `docs/MECHANICS_CANDIDATES.md` の backlog を試作
+3. 必要なら `docs/MECHANICS_CANDIDATES.md` の backlog を試作
+
+## 操作（PC）
+
+- 移動: A/D（WASD）
+- 斧: 左クリック / F
+- ジャンプ: 右クリック / Space / W
 
 ## 既知の注意 / バグ候補
 
@@ -42,6 +47,7 @@
 - スプライト枚数は未強制
 - オリジナルROM／ドット資産は使用禁止
 - 葬送行進曲はパブリックドメイン旋律の簡易実装
+- 参考動画: https://youtu.be/HpaIb2Ptygs
 
 ## ドキュメント
 

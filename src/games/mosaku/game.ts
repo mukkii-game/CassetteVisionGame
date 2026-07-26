@@ -1,28 +1,43 @@
 import type { CVEngine } from '../../engine/engine'
-import { LOGICAL_H, LOGICAL_W, type Scene } from '../../engine/types'
+import { LOGICAL_H, LOGICAL_W, type Scene, type SpritePattern } from '../../engine/types'
 import { scriptAfterStage } from './adv'
 import { AdvScene } from './advScene'
 import { STAGES, type StageConfig } from './stages'
 import {
   ANGEL,
-  AXE,
+  BIRD,
+  BIRD_FLAP,
   BOAR,
   BRANCH,
-  BIRD,
   DROPPING,
-  MOSAKU,
+  MOSAKU_CHOP_BACK,
+  MOSAKU_CHOP_DOWN,
+  MOSAKU_CHOP_UP,
+  MOSAKU_IDLE,
+  MOSAKU_JUMP,
+  MOSAKU_STUN,
+  MOSAKU_WALK_A,
+  MOSAKU_WALK_B,
   SNAKE,
+  SNAKE_DIG,
 } from './sprites'
 import { TitleScene } from './title'
 
 const GROUND_Y = 52
-const PLAYER_W = 7
-const PLAYER_H = 7
+const PLAYER_W = 9
+const PLAYER_H = 9
 const HITS_NEEDED = 7
 const STUN_TIME = 5
 const START_LIVES = 6
 
+/** Chop phases tuned like Yosaku: lag → swing hit → recover (enemy window) */
+const CHOP_UP = 0.12
+const CHOP_DOWN = 0.14
+const CHOP_BACK = 0.18
+const CHOP_TOTAL = CHOP_UP + CHOP_DOWN + CHOP_BACK
+
 type Mode = 'story' | 'timeattack'
+type ChopPhase = 'none' | 'up' | 'down' | 'back'
 
 interface Tree {
   x: number
@@ -38,6 +53,8 @@ interface Enemy {
   y: number
   vx: number
   alive: boolean
+  /** snake emerge 0→1 */
+  emerge: number
 }
 
 interface Hazard {
@@ -62,19 +79,25 @@ export class MosakuGame implements Scene {
   private stageIndex: number
   private stage!: StageConfig
 
-  private px = 36
+  private px = 33
   private facing: 1 | -1 = 1
   private vy = 0
   private onGround = true
-  private chopping = 0
+  private jumpOffset = 0
+  private chopT = 0
+  private chopPhase: ChopPhase = 'none'
+  private treeHitDone = false
   private stun = 0
   private invuln = 0
+  private walkT = 0
+  private moving = false
 
   private trees: Tree[] = []
   private enemies: Enemy[] = []
   private hazards: Hazard[] = []
   private birdX = 20
   private birdDir = 1
+  private birdFlap = 0
 
   private snakeTimer = 0
   private boarTimer = 0
@@ -113,13 +136,17 @@ export class MosakuGame implements Scene {
   private loadStage(index: number): void {
     this.stageIndex = index
     this.stage = STAGES[Math.min(index, STAGES.length - 1)]!
-    this.px = 36
+    this.px = 33
     this.facing = 1
     this.vy = 0
     this.onGround = true
-    this.chopping = 0
+    this.jumpOffset = 0
+    this.chopT = 0
+    this.chopPhase = 'none'
+    this.treeHitDone = false
     this.stun = 0
     this.invuln = 0
+    this.walkT = 0
     this.enemies = []
     this.hazards = []
     this.birdX = 20
@@ -143,13 +170,22 @@ export class MosakuGame implements Scene {
       this.time = 0
       this.flags = new Set()
     }
+    // Two tall pines like CV Yosaku layout
     this.trees = [
-      { x: 14, leftHits: 0, rightHits: 0, fallen: false, fallT: 0 },
-      { x: 54, leftHits: 0, rightHits: 0, fallen: false, fallT: 0 },
+      { x: 10, leftHits: 0, rightHits: 0, fallen: false, fallT: 0 },
+      { x: 56, leftHits: 0, rightHits: 0, fallen: false, fallT: 0 },
     ]
     if (this.flags.has('horror_look') && this.stage.night) {
       this.freezeHorror = 0.8
     }
+  }
+
+  private getChopPhase(): ChopPhase {
+    if (this.chopT <= 0) return 'none'
+    const elapsed = CHOP_TOTAL - this.chopT
+    if (elapsed < CHOP_UP) return 'up'
+    if (elapsed < CHOP_UP + CHOP_DOWN) return 'down'
+    return 'back'
   }
 
   update(dt: number): void {
@@ -172,10 +208,13 @@ export class MosakuGame implements Scene {
           this.phaseT = 0
         } else {
           this.phase = 'play'
-          this.px = 36
+          this.px = 33
           this.vy = 0
           this.onGround = true
+          this.jumpOffset = 0
           this.stun = 0
+          this.chopT = 0
+          this.chopPhase = 'none'
           this.invuln = 1.5
           this.enemies = []
           this.hazards = []
@@ -197,47 +236,61 @@ export class MosakuGame implements Scene {
     }
 
     this.time += dt
+    this.birdFlap += dt
     if (this.invuln > 0) this.invuln -= dt
     if (this.stun > 0) this.stun -= dt
-    if (this.chopping > 0) this.chopping -= dt
 
-    const canControl = this.stun <= 0
+    const canControl = this.stun <= 0 && this.chopPhase === 'none'
 
-    // Jump
+    // Jump (small input lag feel: start next frame via normal justPressed)
     if (canControl && this.onGround && input.justPressed('jump')) {
-      this.vy = -78
+      this.vy = -82
       this.onGround = false
       sound.jump()
     }
 
-    // Horizontal
+    this.moving = false
     if (canControl) {
-      const spd = 38
+      const spd = 36
       if (input.isDown('left')) {
         this.px -= spd * dt
         this.facing = -1
+        this.moving = true
       }
       if (input.isDown('right')) {
         this.px += spd * dt
         this.facing = 1
+        this.moving = true
       }
     }
-    this.px = Math.max(2, Math.min(LOGICAL_W - PLAYER_W - 2, this.px))
+    if (this.moving) this.walkT += dt
+    else this.walkT = 0
 
-    // Gravity
-    if (!this.onGround) {
-      this.vy += 220 * dt
-    }
-    const py = this.playerY()
-    // use foot position via jump offset
-    void py
+    this.px = Math.max(1, Math.min(LOGICAL_W - PLAYER_W - 1, this.px))
+
+    if (!this.onGround) this.vy += 230 * dt
     this.applyJump(dt)
 
-    // Axe
-    if (canControl && this.chopping <= 0 && input.justPressed('axe')) {
-      this.chopping = 0.22
-      this.tryChop()
+    // Start chop (lag before hit — Yosaku-like)
+    if (this.stun <= 0 && this.chopPhase === 'none' && input.justPressed('axe')) {
+      this.chopT = CHOP_TOTAL
+      this.treeHitDone = false
       sound.chop()
+    }
+
+    if (this.chopT > 0) {
+      this.chopT -= dt
+      this.chopPhase = this.getChopPhase()
+      if (this.chopPhase === 'down' && !this.treeHitDone) {
+        this.tryChop()
+        this.treeHitDone = true
+      }
+      if (this.chopT <= 0) {
+        this.chopT = 0
+        this.chopPhase = 'none'
+      }
+    } else {
+      this.chopPhase = 'none'
     }
 
     this.spawnTimers(dt)
@@ -246,12 +299,11 @@ export class MosakuGame implements Scene {
     this.updateBird(dt)
     this.checkCollisions()
 
-    // Tree fall anim
     for (const t of this.trees) {
-      if (t.fallen && t.fallT < 1) t.fallT += dt
+      if (t.fallen && t.fallT < 1) t.fallT += dt * 1.2
     }
 
-    if (this.trees.every((t) => t.fallen && t.fallT >= 0.5)) {
+    if (this.trees.every((t) => t.fallen && t.fallT >= 0.55)) {
       this.phase = 'clear'
       this.phaseT = 0
       sound.clear()
@@ -260,11 +312,8 @@ export class MosakuGame implements Scene {
   }
 
   private playerY(): number {
-    // base standing y
-    return GROUND_Y - PLAYER_H
+    return GROUND_Y - PLAYER_H + 1
   }
-
-  private jumpOffset = 0
 
   private applyJump(dt: number): void {
     if (this.onGround && this.vy === 0) {
@@ -282,40 +331,35 @@ export class MosakuGame implements Scene {
   }
 
   private tryChop(): void {
-    const axeX = this.facing === 1 ? this.px + PLAYER_W : this.px - 3
+    // Hit box at axe tip during down swing
+    const axeX = this.facing === 1 ? this.px + 9 : this.px - 2
     for (const tree of this.trees) {
       if (tree.fallen) continue
       const trunk = tree.x + 3
       const dist = Math.abs(axeX - trunk)
-      // sweet spot: not too close, not too far
-      if (dist < 3 || dist > 11) continue
+      // sweet spot — too close / too far fails (Yosaku)
+      if (dist < 2.5 || dist > 12) continue
       const fromLeft = this.px + PLAYER_W / 2 < trunk
       if (fromLeft) {
         if (tree.leftHits < HITS_NEEDED) {
           tree.leftHits++
           this.score += 10
-          if (tree.leftHits >= HITS_NEEDED && tree.rightHits >= HITS_NEEDED) {
-            tree.fallen = true
-            tree.fallT = 0
-            this.score += 100
-          }
         }
       } else if (tree.rightHits < HITS_NEEDED) {
         tree.rightHits++
         this.score += 10
-        if (tree.leftHits >= HITS_NEEDED && tree.rightHits >= HITS_NEEDED) {
-          tree.fallen = true
-          tree.fallT = 0
-          this.score += 100
-        }
       }
-      // branch chance when chopping
+      if (tree.leftHits >= HITS_NEEDED && tree.rightHits >= HITS_NEEDED) {
+        tree.fallen = true
+        tree.fallT = 0
+        this.score += 100
+      }
       if (Math.random() < this.stage.branchChance) {
         this.hazards.push({
           kind: 'branch',
           x: trunk - 2,
-          y: 8,
-          vy: 30 + Math.random() * 20,
+          y: 6,
+          vy: 26 + Math.random() * 18,
         })
       }
       break
@@ -328,13 +372,16 @@ export class MosakuGame implements Scene {
     this.birdTimer -= dt
     if (this.snakeTimer <= 0) {
       this.snakeTimer = this.stage.snakeInterval * (0.7 + Math.random() * 0.6)
-      const fromLeft = Math.random() < 0.5
+      // Snakes dig up near player path (Yosaku: from ground)
+      const side = Math.random() < 0.5 ? -1 : 1
+      const x = Math.max(8, Math.min(LOGICAL_W - 12, this.px + side * (14 + Math.random() * 18)))
       this.enemies.push({
         kind: 'snake',
-        x: fromLeft ? -8 : LOGICAL_W + 2,
-        y: GROUND_Y - 5,
-        vx: (fromLeft ? 1 : -1) * this.stage.enemySpeed * 0.7,
+        x,
+        y: GROUND_Y - 2,
+        vx: (this.px < x ? -1 : 1) * this.stage.enemySpeed * 0.55,
         alive: true,
+        emerge: 0,
       })
     }
     if (this.boarTimer <= 0) {
@@ -346,6 +393,7 @@ export class MosakuGame implements Scene {
         y: GROUND_Y - 6,
         vx: (fromLeft ? 1 : -1) * this.stage.enemySpeed,
         alive: true,
+        emerge: 1,
       })
     }
     if (this.birdTimer <= 0) {
@@ -366,49 +414,57 @@ export class MosakuGame implements Scene {
   }
 
   private updateEnemies(dt: number): void {
-    const { input, sound } = this.eng
+    const { sound } = this.eng
     for (const e of this.enemies) {
       if (!e.alive) continue
+      if (e.kind === 'snake' && e.emerge < 1) {
+        e.emerge = Math.min(1, e.emerge + dt * 2.2)
+        e.y = GROUND_Y - 2 - e.emerge * 3
+        continue
+      }
       e.x += e.vx * dt
-      // axe hit
-      if (this.chopping > 0.05) {
-        const axeX = this.facing === 1 ? this.px + 5 : this.px - 4
-        const ax = axeX
-        const ay = this.playerY() + this.jumpOffset + 2
-        if (Math.abs(ax - (e.x + 3)) < 6 && Math.abs(ay - e.y) < 8) {
+
+      // Enemy hit: down swing + recover (return axe) — Yosaku timing
+      const canHitEnemy = this.chopPhase === 'down' || this.chopPhase === 'back'
+      if (canHitEnemy) {
+        const axeX = this.facing === 1 ? this.px + 8 : this.px - 1
+        const ay = this.playerY() + this.jumpOffset + 3
+        const ew = e.kind === 'boar' ? 9 : 7
+        if (Math.abs(axeX - (e.x + ew / 2)) < 7 && Math.abs(ay - e.y) < 9) {
           e.alive = false
           this.score += e.kind === 'boar' ? 50 : 30
           sound.hitEnemy()
         }
       }
-      if (e.x < -16 || e.x > LOGICAL_W + 16) e.alive = false
+      if (e.x < -18 || e.x > LOGICAL_W + 18) e.alive = false
     }
     this.enemies = this.enemies.filter((e) => e.alive)
-    void input
   }
 
   private updateHazards(dt: number): void {
-    for (const h of this.hazards) {
-      h.y += h.vy * dt
-    }
+    for (const h of this.hazards) h.y += h.vy * dt
     this.hazards = this.hazards.filter((h) => h.y < LOGICAL_H + 4)
   }
 
   private checkCollisions(): void {
     if (this.invuln > 0 || this.phase !== 'play') return
     const pr = {
-      x: this.px + 1,
-      y: this.playerY() + this.jumpOffset + 1,
+      x: this.px + 2,
+      y: this.playerY() + this.jumpOffset + 2,
       w: 5,
       h: 6,
     }
-
-    // jump avoids ground enemies if high enough
-    const high = this.jumpOffset < -10
+    const high = this.jumpOffset < -12
 
     for (const e of this.enemies) {
       if (!e.alive) continue
-      const er = { x: e.x, y: e.y, w: e.kind === 'boar' ? 8 : 7, h: e.kind === 'boar' ? 6 : 5 }
+      if (e.kind === 'snake' && e.emerge < 0.85) continue
+      const er = {
+        x: e.x,
+        y: e.y,
+        w: e.kind === 'boar' ? 9 : 7,
+        h: e.kind === 'boar' ? 6 : 5,
+      }
       if (overlap(pr, er)) {
         if (high) continue
         this.miss()
@@ -421,11 +477,13 @@ export class MosakuGame implements Scene {
         x: h.x,
         y: h.y,
         w: h.kind === 'drop' ? 3 : 5,
-        h: h.kind === 'drop' ? 3 : 3,
+        h: 3,
       }
       if (overlap(pr, hr)) {
         this.hazards = this.hazards.filter((x) => x !== h)
         this.stun = STUN_TIME
+        this.chopT = 0
+        this.chopPhase = 'none'
         this.eng.sound.stun()
         return
       }
@@ -437,100 +495,109 @@ export class MosakuGame implements Scene {
     this.phase = 'death'
     this.phaseT = 0
     this.angelY = this.playerY() + this.jumpOffset
+    this.chopT = 0
+    this.chopPhase = 'none'
     this.eng.sound.funeralMarch()
   }
 
   private advanceAfterClear(): void {
     if (this.mode === 'timeattack') {
-      this.eng.setScene(new TitleScene(this.eng, {
-        taResult: this.time,
-      }))
+      this.eng.setScene(new TitleScene(this.eng, { taResult: this.time }))
       return
     }
     const clearedId = this.stage.id
     const script = scriptAfterStage(clearedId)
     const nextIndex = this.stageIndex + 1
+    const nextOpts = {
+      mode: 'story' as const,
+      stageIndex: nextIndex,
+      lives: this.lives,
+      score: this.score,
+      flags: this.flags,
+      time: this.time,
+    }
     if (script) {
       this.eng.setScene(
         new AdvScene(this.eng, script, this.flags, () => {
           if (nextIndex >= STAGES.length) {
-            this.eng.setScene(new TitleScene(this.eng, { ending: true, flags: this.flags, score: this.score }))
-          } else {
             this.eng.setScene(
-              new MosakuGame(this.eng, {
-                mode: 'story',
-                stageIndex: nextIndex,
-                lives: this.lives,
-                score: this.score,
-                flags: this.flags,
-                time: this.time,
-              }),
+              new TitleScene(this.eng, { ending: true, flags: this.flags, score: this.score }),
             )
+          } else {
+            this.eng.setScene(new MosakuGame(this.eng, nextOpts))
           }
         }),
       )
       return
     }
     if (nextIndex >= STAGES.length) {
-      this.eng.setScene(new TitleScene(this.eng, { ending: true, flags: this.flags, score: this.score }))
-    } else {
       this.eng.setScene(
-        new MosakuGame(this.eng, {
-          mode: 'story',
-          stageIndex: nextIndex,
-          lives: this.lives,
-          score: this.score,
-          flags: this.flags,
-          time: this.time,
-        }),
+        new TitleScene(this.eng, { ending: true, flags: this.flags, score: this.score }),
       )
+    } else {
+      this.eng.setScene(new MosakuGame(this.eng, nextOpts))
     }
+  }
+
+  private playerSprite(): SpritePattern {
+    if (this.stun > 0) return MOSAKU_STUN
+    if (!this.onGround) return MOSAKU_JUMP
+    if (this.chopPhase === 'up') return MOSAKU_CHOP_UP
+    if (this.chopPhase === 'down') return MOSAKU_CHOP_DOWN
+    if (this.chopPhase === 'back') return MOSAKU_CHOP_BACK
+    if (this.moving) {
+      return Math.floor(this.walkT * 8) % 2 === 0 ? MOSAKU_WALK_A : MOSAKU_WALK_B
+    }
+    return MOSAKU_IDLE
   }
 
   draw(): void {
     const r = this.eng.renderer
     const sky = this.stage.night ? 0 : 1
-    const ground = this.stage.night ? 4 : 4
     r.clear(sky)
-    // ground
-    r.fillRect(0, GROUND_Y, LOGICAL_W, LOGICAL_H - GROUND_Y, ground)
+
+    // distant hills / ground strip like CV playfield
+    r.fillRect(0, 44, LOGICAL_W, 2, this.stage.night ? 0 : 4)
+    r.fillRect(0, GROUND_Y, LOGICAL_W, LOGICAL_H - GROUND_Y, 4)
     r.fillRect(0, GROUND_Y, LOGICAL_W, 1, this.stage.night ? 0 : 6)
 
-    // trees
-    for (const t of this.trees) {
-      this.drawTree(t)
-    }
+    for (const t of this.trees) this.drawTree(t)
 
-    // bird
-    r.drawSprite(BIRD, Math.floor(this.birdX), 4, this.birdDir < 0)
+    const birdSpr = Math.floor(this.birdFlap * 6) % 2 === 0 ? BIRD : BIRD_FLAP
+    r.drawSprite(birdSpr, Math.floor(this.birdX), 4, this.birdDir < 0)
 
-    // hazards
     for (const h of this.hazards) {
       r.drawSprite(h.kind === 'drop' ? DROPPING : BRANCH, Math.floor(h.x), Math.floor(h.y))
     }
 
-    // enemies
     for (const e of this.enemies) {
       if (!e.alive) continue
       const flip = e.vx < 0
-      r.drawSprite(e.kind === 'boar' ? BOAR : SNAKE, Math.floor(e.x), Math.floor(e.y), flip)
+      if (e.kind === 'snake' && e.emerge < 1) {
+        r.drawSprite(SNAKE_DIG, Math.floor(e.x), Math.floor(e.y), flip)
+      } else {
+        r.drawSprite(e.kind === 'boar' ? BOAR : SNAKE, Math.floor(e.x), Math.floor(e.y), flip)
+      }
     }
 
-    // player / angel
     if (this.phase === 'death' || this.phase === 'gameover') {
       r.drawSprite(ANGEL, Math.floor(this.px), Math.floor(this.angelY))
     } else {
-      const py = Math.floor(this.playerY() + this.jumpOffset)
+      const bob = this.moving && this.onGround && this.chopPhase === 'none'
+        ? Math.floor(this.walkT * 8) % 2
+        : 0
+      const py = Math.floor(this.playerY() + this.jumpOffset) - bob
       const flash = this.invuln > 0 && Math.floor(this.invuln * 10) % 2 === 0
       if (!flash) {
-        r.drawSprite(MOSAKU, Math.floor(this.px), py, this.facing < 0)
-        if (this.chopping > 0) {
-          const ax = this.facing === 1 ? this.px + 4 : this.px - 5
-          r.drawSprite(AXE, ax, py - 1, this.facing < 0)
-        }
+        const spr = this.playerSprite()
+        const drawX =
+          this.facing < 0 && spr.w > 9
+            ? Math.floor(this.px) - (spr.w - 9)
+            : Math.floor(this.px)
+        r.drawSprite(spr, drawX, py, this.facing < 0)
       }
       if (this.stun > 0) {
-        r.drawText('Z', Math.floor(this.px) + 2, py - 6, 7)
+        r.drawText('!', Math.floor(this.px) + 3, py - 5, 6)
       }
     }
 
@@ -543,39 +610,70 @@ export class MosakuGame implements Scene {
       r.drawText(`${this.time.toFixed(1)}`, 58, 1, 7)
     }
 
-    if (this.phase === 'clear') {
-      r.drawText('CLEAR', 26, 28, 7)
-    }
+    if (this.phase === 'clear') r.drawText('CLEAR', 26, 28, 7)
     if (this.phase === 'gameover') {
       r.drawText('GAME OVER', 18, 26, 2)
       r.drawText('ENTER', 28, 34, 7)
     }
     if (this.freezeHorror > 0) {
-      // frozen frame effect: dark vignette bars
       r.fillRect(0, 20, LOGICAL_W, 1, 0)
       r.fillRect(0, 40, LOGICAL_W, 1, 0)
     }
   }
 
+  /** Trunk notches change color as hits accumulate (Yosaku: 変色) */
   private drawTree(t: Tree): void {
     const r = this.eng.renderer
     if (t.fallen) {
-      const lean = Math.min(1, t.fallT) * 8
-      r.fillRect(t.x, GROUND_Y - 3, 10 + lean, 3, 6)
+      const lean = Math.floor(Math.min(1, t.fallT) * 14)
+      r.fillRect(t.x - 1, GROUND_Y - 4, 12 + lean, 4, 6)
+      r.fillRect(t.x + lean, GROUND_Y - 7, 8, 3, 4)
       return
     }
-    // trunk
-    r.fillRect(t.x + 3, 18, 3, GROUND_Y - 18, 6)
+
     // canopy
-    r.fillRect(t.x, 10, 9, 10, 4)
-    // damage markers left / right
-    const lh = t.leftHits
-    const rh = t.rightHits
+    r.fillRect(t.x - 1, 8, 11, 8, 4)
+    r.fillRect(t.x + 1, 5, 7, 5, 4)
+    // trunk
+    r.fillRect(t.x + 3, 16, 3, GROUND_Y - 16, 6)
+
+    // Left / right cut faces — color shifts white→orange→red with hits
     for (let i = 0; i < HITS_NEEDED; i++) {
-      if (i < lh) r.setPixel(t.x + 1, 30 + i * 2, 2)
-      if (i < rh) r.setPixel(t.x + 7, 30 + i * 2, 2)
+      const y = 28 + i * 3
+      const leftCol = notchColor(t.leftHits, i)
+      const rightCol = notchColor(t.rightHits, i)
+      if (t.leftHits > i) {
+        r.fillRect(t.x, y, 3, 2, leftCol)
+      } else {
+        r.setPixel(t.x + 2, y, 6)
+      }
+      if (t.rightHits > i) {
+        r.fillRect(t.x + 6, y, 3, 2, rightCol)
+      } else {
+        r.setPixel(t.x + 6, y, 6)
+      }
+    }
+
+    // fully cut side: gap in trunk
+    if (t.leftHits >= HITS_NEEDED) {
+      r.fillRect(t.x + 2, 34, 2, 8, skyGap(this.stage.night))
+    }
+    if (t.rightHits >= HITS_NEEDED) {
+      r.fillRect(t.x + 5, 34, 2, 8, skyGap(this.stage.night))
     }
   }
+}
+
+function notchColor(hits: number, index: number): number {
+  if (hits <= index) return 6
+  const depth = hits - index
+  if (depth >= 3) return 2 // red deep cut
+  if (depth >= 2) return 6 // orange
+  return 7 // fresh white chip
+}
+
+function skyGap(night: boolean): number {
+  return night ? 0 : 1
 }
 
 function overlap(
