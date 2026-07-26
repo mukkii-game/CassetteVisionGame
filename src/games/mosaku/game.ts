@@ -33,9 +33,10 @@ const CHOP_MAX_DIST = 4.5
 const CHOP_MIN_DIST = 0
 
 /** Chop phases tuned like Yosaku: lag → swing hit → recover (enemy window) */
-const CHOP_UP = 0.12
-const CHOP_DOWN = 0.14
-const CHOP_BACK = 0.18
+/** Yosaku-like input lag: wind-up visible, then tip strike, then recover */
+const CHOP_UP = 0.18
+const CHOP_DOWN = 0.16
+const CHOP_BACK = 0.2
 const CHOP_TOTAL = CHOP_UP + CHOP_DOWN + CHOP_BACK
 
 type Mode = 'story' | 'timeattack'
@@ -174,7 +175,7 @@ export class MosakuGame implements Scene {
     }
     // Two trees — CV proportions
     this.trees = [
-      { x: 16, leftHits: 0, rightHits: 0, fallen: false, fallT: 0 },
+      { x: 20, leftHits: 0, rightHits: 0, fallen: false, fallT: 0 },
       { x: 54, leftHits: 0, rightHits: 0, fallen: false, fallT: 0 },
     ]
     if (this.flags.has('horror_look') && this.stage.night) {
@@ -617,7 +618,13 @@ export class MosakuGame implements Scene {
     for (const e of this.enemies) {
       if (!e.alive) continue
       if (e.kind === 'boar') {
-        drawBoar(r, Math.floor(e.x), Math.floor(e.y), e.vx < 0)
+        drawBoar(
+          r,
+          Math.floor(e.x),
+          Math.floor(e.y),
+          e.vx < 0,
+          Math.floor(this.time * 8),
+        )
       } else {
         drawSnake(r, Math.floor(e.x), GROUND_Y - 6, e.emerge)
       }

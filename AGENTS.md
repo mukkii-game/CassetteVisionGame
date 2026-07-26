@@ -43,10 +43,10 @@
 
 ## ビジュアル方針
 
-- 与作スクショ準拠: 黒空・緑地面・三角松・1色キャラ
-- **斜めは階段ドット禁止** — `fillTriangle` / `drawDiagThick` / `fillParallelogram` は表示解像度で滑らかな⊿・斜線
-- 矩形キャラはそのままブロック
-- 描画本体: `src/games/mosaku/cvDraw.ts` + `src/engine/renderer.ts`
+- 黒空・緑地面。キャラは μPD777-005 Yosaku Pattern ROM 形に寄せたオマージュ（`patterns.ts`）
+- 茂作=橙、斧=シアン。斧: 正面立て → 振りかぶり → 先端を根本へ
+- 木=橙キャノピ＋2px幹。マムシ=地面から出現。イノシシ=横移動2コマ
+- 描画: `cvDraw.ts` + `patterns.ts`
 
 ## 既知の注意 / バグ候補
 

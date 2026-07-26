@@ -63,7 +63,7 @@ export class TitleScene implements Scene {
     const groundY = 48
     r.clear(C.sky)
     r.fillRect(0, groundY, LOGICAL_W, LOGICAL_H - groundY, C.ground)
-    drawPineTree(r, 16, groundY, 0, 0, false, 0)
+    drawPineTree(r, 20, groundY, 0, 0, false, 0)
     drawPineTree(r, 54, groundY, 0, 0, false, 0)
 
     if (this.extras.ending) {

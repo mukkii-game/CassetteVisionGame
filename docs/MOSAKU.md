@@ -10,7 +10,8 @@
 4. **2本とも**消すと面クリア
 5. 敵: イノシシ（横移動）／**マムシ（地面下から出現して這う）**／鳥フン・枝
 
-解像度感はカセットビジョン 75×60・スプライト規模に合わせ、スクショ同等の階段ドット表現。
+解像度は 75×60。キャラシルエットは μPD777-005（きこりの与作）Pattern ROM の形に寄せたオマージュ（7〜8ドット規模・斧はシアン）。  
+参考: [CVS ODYSSEY 与作](http://www.ne.jp/asahi/cvs/odyssey/videogames/cv/soft/yosaku/)、[小口氏 Pattern ROM](https://www.oguchi-rd.com/777/ROM%20Dump/777-005%20Yosaku/Pattern%20ROM/Yosaku%20Pattern%20ROM%20Contents.pdf)、[プレイ動画](https://youtu.be/HpaIb2Ptygs)
 4. マムシ・イノシシ: 斧で撃破 or ジャンプ回避。接触でミス
 5. 鳥は倒せない。フン／枝で約 5 秒しびれ（移動・斧不可）
 6. ライフ尽きでゲームオーバー。ミス時は天使昇天＋葬送曲オマージュ
