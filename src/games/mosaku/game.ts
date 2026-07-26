@@ -11,6 +11,7 @@ import {
   drawMosaku,
   drawPineTree,
   drawSnake,
+  HITS_TO_FELL_SIDE,
 } from './cvDraw'
 import { STAGES, type StageConfig } from './stages'
 import { TitleScene } from './title'
@@ -19,7 +20,6 @@ import { TitleScene } from './title'
 const GROUND_Y = 40
 const PLAYER_W = 8
 const PLAYER_H = 9
-const HITS_NEEDED = 7
 const STUN_TIME = 5
 const START_LIVES = 6
 
@@ -296,6 +296,7 @@ export class MosakuGame implements Scene {
       if (t.fallen && t.fallT < 1) t.fallT += dt * 1.2
     }
 
+    // Both trees carved from both sides and gone → stage clear
     if (this.trees.every((t) => t.fallen && t.fallT >= 0.55)) {
       this.phase = 'clear'
       this.phaseT = 0
@@ -324,29 +325,40 @@ export class MosakuGame implements Scene {
   }
 
   private tryChop(): void {
-    // Hit box at axe tip during down swing
+    // Hit near the BASE of the trunk (削るのは根本)
     const axeX = this.facing === 1 ? this.px + 9 : this.px - 2
+    const axeY = this.playerY() + this.jumpOffset + 6
     for (const tree of this.trees) {
       if (tree.fallen) continue
       const trunk = tree.x + 3
       const dist = Math.abs(axeX - trunk)
       // sweet spot — too close / too far fails (Yosaku)
       if (dist < 2.5 || dist > 12) continue
+      // must swing near the stump / base, not the canopy
+      if (axeY < GROUND_Y - 14) continue
+
       const fromLeft = this.px + PLAYER_W / 2 < trunk
       if (fromLeft) {
-        if (tree.leftHits < HITS_NEEDED) {
+        if (tree.leftHits < HITS_TO_FELL_SIDE) {
           tree.leftHits++
           this.score += 10
         }
-      } else if (tree.rightHits < HITS_NEEDED) {
+      } else if (tree.rightHits < HITS_TO_FELL_SIDE) {
         tree.rightHits++
         this.score += 10
       }
-      if (tree.leftHits >= HITS_NEEDED && tree.rightHits >= HITS_NEEDED) {
+
+      // Both sides carved through → tree falls away and disappears
+      if (
+        tree.leftHits >= HITS_TO_FELL_SIDE &&
+        tree.rightHits >= HITS_TO_FELL_SIDE &&
+        !tree.fallen
+      ) {
         tree.fallen = true
         tree.fallT = 0
         this.score += 100
       }
+
       if (Math.random() < this.stage.branchChance) {
         this.hazards.push({
           kind: 'branch',

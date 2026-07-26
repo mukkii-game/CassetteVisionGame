@@ -19,9 +19,10 @@ export const C = {
   cut: 2,
 } as const
 
+export const HITS_TO_FELL_SIDE = 7
+
 /**
  * Draw Mosaku as solid orange silhouette + cyan axe stick (CV look).
- * phase: idle | walk0 | walk1 | up | down | back | jump | stun | angel
  */
 export function drawMosaku(
   r: Renderer,
@@ -35,19 +36,15 @@ export function drawMosaku(
   const axe = C.axe
 
   if (phase === 'angel') {
-    // wings via diagonal thick lines + body
     r.drawDiagThick(x - 2, y + 1, 4, 2, -1, C.angel)
     r.drawDiagThick(x + 6, y + 1, 4, 2, 1, C.angel)
     r.fillRect(x + 2, y + 2, 4, 6, C.angel)
     return
   }
 
-  // head
   r.fillRect(x + 2, y, 4, 3, body)
-  // torso
   r.fillRect(x + 1, y + 3, 6, 3, body)
 
-  // legs by pose
   if (phase === 'jump') {
     r.fillRect(x + 2, y + 6, 2, 2, body)
     r.fillRect(x + 5, y + 6, 2, 2, body)
@@ -58,18 +55,14 @@ export function drawMosaku(
     r.fillRect(x + 2, y + 6, 2, 2, body)
     r.fillRect(x + 5, y + 6, 2, 3, body)
   } else {
-    // idle / stun / chop — wide stance like screenshot
     r.fillRect(x + 1, y + 6, 2, 3, body)
     r.fillRect(x + 5, y + 6, 2, 3, body)
   }
 
-  // axe (cyan) — position by chop phase
   if (phase === 'up') {
-    // raised behind head
     const ax = f === 1 ? x - 1 : x + 7
     r.fillRect(ax, y - 2, 2, 5, axe)
   } else if (phase === 'down') {
-    // swung forward low
     const ax = f === 1 ? x + 7 : x - 2
     r.fillRect(ax, y + 3, 2, 5, axe)
     r.fillRect(ax + (f === 1 ? 0 : -1), y + 7, 3, 2, axe)
@@ -77,7 +70,6 @@ export function drawMosaku(
     const ax = f === 1 ? x + 6 : x - 1
     r.fillRect(ax, y + 1, 2, 4, axe)
   } else {
-    // vertical stick at side (screenshot idle)
     const ax = f === 1 ? x + 7 : x - 1
     r.fillRect(ax, y + 1, 2, 6, axe)
   }
@@ -87,24 +79,19 @@ export function drawMosaku(
   }
 }
 
-/** Magenta boar with diagonal / trapezoid body (CV slanted dots) */
 export function drawBoar(r: Renderer, x: number, y: number, facingLeft: boolean): void {
   const c = C.boar
-  // body as parallelogram (skewed)
   const skew = facingLeft ? -3 : 3
   r.fillParallelogram(x + (facingLeft ? 3 : 0), y + 1, 8, 4, skew, c)
-  // snout diagonal
   if (facingLeft) {
     r.drawDiagThick(x + 1, y + 2, 3, 2, -1, c)
   } else {
     r.drawDiagThick(x + 9, y + 2, 3, 2, 1, c)
   }
-  // legs
   r.fillRect(x + 2, y + 5, 2, 2, c)
   r.fillRect(x + 7, y + 5, 2, 2, c)
 }
 
-/** Green snake — thick diagonal segments */
 export function drawSnake(r: Renderer, x: number, y: number, emerging: boolean): void {
   const c = C.snake
   if (emerging) {
@@ -117,7 +104,6 @@ export function drawSnake(r: Renderer, x: number, y: number, emerging: boolean):
   r.drawDiagThick(x + 6, y + 2, 3, 2, -1, c)
 }
 
-/** Cyan bird — simple V / block with diagonal wings */
 export function drawBird(r: Renderer, x: number, y: number, flap: boolean): void {
   const c = C.bird
   r.fillRect(x + 2, y + 1, 3, 2, c)
@@ -130,7 +116,12 @@ export function drawBird(r: Renderer, x: number, y: number, flap: boolean): void
   }
 }
 
-/** Yosaku pine: two stacked green triangles + grey trunk */
+/**
+ * Yosaku-style pine:
+ * - Chop the BASE from left / right (actually carve wood away — no red/orange tally marks)
+ * - Several hits deepen that side's cut until the side is severed
+ * - Both sides severed → tree tips over then vanishes
+ */
 export function drawPineTree(
   r: Renderer,
   trunkX: number,
@@ -140,32 +131,83 @@ export function drawPineTree(
   fallen: boolean,
   fallT: number,
 ): void {
-  const cx = trunkX + 2
+  const cx = trunkX + 3
+  const trunkW = 5
+  const trunkLeft = trunkX + 1
+  const canopyBottom = 25
+  const chopTop = groundY - 10
+  const chopH = groundY - chopTop
+
+  // Gone after fall animation
+  if (fallen && fallT >= 0.55) return
+
   if (fallen) {
-    const lean = Math.floor(Math.min(1, fallT) * 16)
-    r.fillRect(trunkX - 2 + lean, groundY - 3, 14, 3, C.trunk)
-    r.fillPine(cx + lean, groundY - 10, 7, 7, C.foliage)
+    // Brief tip-over then disappear
+    const lean = Math.floor(Math.min(1, fallT / 0.55) * 18)
+    const dir = leftHits >= rightHits ? 1 : -1
+    r.fillPine(cx + lean * dir, groundY - 12, 8, 9, C.foliage)
+    r.fillRect(trunkLeft + lean * dir, groundY - 4, 10, 3, C.trunk)
     return
   }
 
-  // two stacked solid triangles (screenshot)
+  // Canopy (two stacked ⊿)
   r.fillPine(cx, 6, 8, 10, C.foliage)
   r.fillPine(cx, 14, 10, 11, C.foliage)
-  // trunk
-  r.fillRect(trunkX + 1, 24, 3, groundY - 24, C.trunk)
 
-  // cut notches (discolor) on sides
-  for (let i = 0; i < 7; i++) {
-    const y = 30 + i * 2
-    if (leftHits > i) r.fillRect(trunkX - 1, y, 2, 2, i < leftHits - 2 ? C.cut : C.mosaku)
-    if (rightHits > i) r.fillRect(trunkX + 4, y, 2, 2, i < rightHits - 2 ? C.cut : C.mosaku)
+  // Upper trunk (uncut)
+  r.fillRect(trunkLeft, canopyBottom, trunkW, chopTop - canopyBottom, C.trunk)
+
+  // Base trunk — carve from sides with smooth wedges (sky punches)
+  r.fillRect(trunkLeft, chopTop, trunkW, chopH, C.trunk)
+
+  const max = HITS_TO_FELL_SIDE
+  // Depth into trunk from each side (0 .. trunkW/2+, full side when hits max)
+  const leftDepth = (Math.min(leftHits, max) / max) * (trunkW * 0.55 + 0.5)
+  const rightDepth = (Math.min(rightHits, max) / max) * (trunkW * 0.55 + 0.5)
+
+  // Left axe bites: triangular notch eating into base from the left
+  if (leftHits > 0) {
+    const d = Math.max(1.2, leftDepth)
+    // upper bite + lower bite → V cut from left
+    r.fillTriangle(
+      trunkLeft - 0.5,
+      chopTop + 1,
+      trunkLeft + d,
+      chopTop + chopH * 0.45,
+      trunkLeft - 0.5,
+      chopTop + chopH - 1,
+      C.sky,
+    )
+    // deepen: also clear a rect band so wood is truly gone
+    r.fillRect(trunkLeft, chopTop + 2, Math.ceil(d), chopH - 4, C.sky)
   }
-  if (leftHits >= 7) r.fillRect(trunkX + 1, 36, 1, 8, C.sky)
-  if (rightHits >= 7) r.fillRect(trunkX + 3, 36, 1, 8, C.sky)
+
+  // Right axe bites
+  if (rightHits > 0) {
+    const d = Math.max(1.2, rightDepth)
+    const right = trunkLeft + trunkW
+    r.fillTriangle(
+      right + 0.5,
+      chopTop + 1,
+      right - d,
+      chopTop + chopH * 0.45,
+      right + 0.5,
+      chopTop + chopH - 1,
+      C.sky,
+    )
+    r.fillRect(right - Math.ceil(d), chopTop + 2, Math.ceil(d), chopH - 4, C.sky)
+  }
+
+  // Side fully severed: clear that half of the base completely
+  if (leftHits >= max) {
+    r.fillRect(trunkLeft, chopTop, Math.ceil(trunkW / 2), chopH, C.sky)
+  }
+  if (rightHits >= max) {
+    r.fillRect(trunkLeft + Math.floor(trunkW / 2), chopTop, Math.ceil(trunkW / 2), chopH, C.sky)
+  }
 }
 
 export function drawDrop(r: Renderer, x: number, y: number): void {
-  // small diagonal chip (screenshot projectile-ish)
   r.drawDiagThick(x, y, 3, 2, 1, C.drop)
   r.setPixel(x + 2, y + 1, C.bird)
 }
