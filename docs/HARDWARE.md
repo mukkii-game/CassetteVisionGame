@@ -6,8 +6,8 @@
 
 | Item | Value |
 |------|-------|
-| Logical resolution | 75 × 60 |
-| Upscale | Nearest-neighbor, integer scale preferred |
+| Logical resolution | 75 × 60（座標・ゲームロジック） |
+| Upscale | 整数倍。矩形はニアレスト、**三角／斜線／平行四辺形は表示解像度で滑らかに描画** |
 | Colors | 8 fixed palette entries |
 
 ## Palette (Yosaku-like vivid 8)
@@ -25,13 +25,15 @@
 
 ## Geometry (μPD777 features we soft-emulate)
 
-実機は矩形ドットに加え、**平行四辺形／斜めドット**や、見た目上の**三角ベタ**が使える（チャンネル表示系由来の斜め分割・タイミングずらし）。ソフトエンジンでも以下を提供:
+実機は矩形ドットに加え、**平行四辺形／斜めドット**で **⊿のようななめらかな斜辺** を出せる（ドットの階段近似ではない）。  
+ソフト側も「細かいドットで斜めっぽく」ではなく、`present()` 時にパス塗りで本物の斜辺を出す:
 
-| API | 用途 |
-|-----|------|
-| `fillTriangle` / `fillPine` | 松の葉など三角ベタ |
-| `drawDiagThick` | 斜めの太い線（イノシシ・フン・翼） |
-| `fillParallelogram` | 平行四辺形ボディ |
+| API | 用途 | 表示 |
+|-----|------|------|
+| `fillTriangle` / `fillPine` | 松の葉など三角ベタ ⊿ | 滑らかな斜辺 |
+| `drawDiagThick` | 斜めの太い線 | 滑らかなストローク |
+| `fillParallelogram` | 平行四辺形ボディ | 滑らかな四辺形 |
+| `fillRect` / 文字 | 普通の矩形キャラ・HUD | ブロックのまま |
 
 ## Sprites (soft)
 

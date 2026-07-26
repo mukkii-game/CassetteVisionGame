@@ -44,8 +44,9 @@
 ## ビジュアル方針
 
 - 与作スクショ準拠: 黒空・緑地面・三角松・1色キャラ
-- 三角ベタ／斜め太線／平行四辺形は `Renderer` API（μPD777斜めドットのソフト近似）
-- 描画本体: `src/games/mosaku/cvDraw.ts`
+- **斜めは階段ドット禁止** — `fillTriangle` / `drawDiagThick` / `fillParallelogram` は表示解像度で滑らかな⊿・斜線
+- 矩形キャラはそのままブロック
+- 描画本体: `src/games/mosaku/cvDraw.ts` + `src/engine/renderer.ts`
 
 ## 既知の注意 / バグ候補
 

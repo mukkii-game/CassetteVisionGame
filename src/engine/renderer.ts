@@ -1,13 +1,47 @@
 import { PALETTE } from './palette'
 import { LOGICAL_H, LOGICAL_W, type SpritePattern } from './types'
 
+/**
+ * Display commands in draw order.
+ * Rects stay blocky; tri / diag / para are drawn as true smooth geometry
+ * at screen resolution (μPD777 parallelogram / ⊿ look — not stair-step dots).
+ */
+type DrawCmd =
+  | { k: 'clear'; c: number }
+  | { k: 'rect'; x: number; y: number; w: number; h: number; c: number }
+  | {
+      k: 'tri'
+      x0: number
+      y0: number
+      x1: number
+      y1: number
+      x2: number
+      y2: number
+      c: number
+    }
+  | {
+      k: 'diag'
+      x: number
+      y: number
+      len: number
+      thick: number
+      dir: 1 | -1
+      c: number
+    }
+  | {
+      k: 'para'
+      x: number
+      y: number
+      w: number
+      h: number
+      skew: number
+      c: number
+    }
+
 export class Renderer {
-  readonly logical: HTMLCanvasElement
-  private lctx: CanvasRenderingContext2D
   private screen: HTMLCanvasElement
   private sctx: CanvasRenderingContext2D
-  private pixels: Uint8ClampedArray
-  private imageData: ImageData
+  private cmds: DrawCmd[] = []
   spriteCount = 0
 
   constructor(screen: HTMLCanvasElement) {
@@ -15,42 +49,23 @@ export class Renderer {
     const sctx = screen.getContext('2d')
     if (!sctx) throw new Error('2d context missing')
     this.sctx = sctx
-    this.sctx.imageSmoothingEnabled = false
-
-    this.logical = document.createElement('canvas')
-    this.logical.width = LOGICAL_W
-    this.logical.height = LOGICAL_H
-    const lctx = this.logical.getContext('2d', { willReadFrequently: true })
-    if (!lctx) throw new Error('logical 2d missing')
-    this.lctx = lctx
-    this.lctx.imageSmoothingEnabled = false
-    this.imageData = this.lctx.createImageData(LOGICAL_W, LOGICAL_H)
-    this.pixels = this.imageData.data
   }
 
   beginFrame(): void {
     this.spriteCount = 0
+    this.cmds = []
     this.clear(0)
   }
 
   clear(colorIndex: number): void {
-    const [r, g, b] = hexToRgb(PALETTE[colorIndex & 7]!)
-    for (let i = 0; i < this.pixels.length; i += 4) {
-      this.pixels[i] = r
-      this.pixels[i + 1] = g
-      this.pixels[i + 2] = b
-      this.pixels[i + 3] = 255
-    }
+    this.cmds.push({ k: 'clear', c: colorIndex & 7 })
   }
 
   setPixel(x: number, y: number, colorIndex: number): void {
-    if (x < 0 || y < 0 || x >= LOGICAL_W || y >= LOGICAL_H) return
-    const i = (y * LOGICAL_W + x) * 4
-    const [r, g, b] = hexToRgb(PALETTE[colorIndex & 7]!)
-    this.pixels[i] = r
-    this.pixels[i + 1] = g
-    this.pixels[i + 2] = b
-    this.pixels[i + 3] = 255
+    const xi = Math.floor(x)
+    const yi = Math.floor(y)
+    if (xi < 0 || yi < 0 || xi >= LOGICAL_W || yi >= LOGICAL_H) return
+    this.cmds.push({ k: 'rect', x: xi, y: yi, w: 1, h: 1, c: colorIndex & 7 })
   }
 
   fillRect(x: number, y: number, w: number, h: number, colorIndex: number): void {
@@ -58,16 +73,12 @@ export class Renderer {
     const y0 = Math.floor(y)
     const ww = Math.floor(w)
     const hh = Math.floor(h)
-    for (let yy = 0; yy < hh; yy++) {
-      for (let xx = 0; xx < ww; xx++) {
-        this.setPixel(x0 + xx, y0 + yy, colorIndex)
-      }
-    }
+    if (ww <= 0 || hh <= 0) return
+    this.cmds.push({ k: 'rect', x: x0, y: y0, w: ww, h: hh, c: colorIndex & 7 })
   }
 
   /**
-   * Filled triangle (stepped / aliased). μPD777-style solid wedge used for pine tops etc.
-   * Points in any order.
+   * Solid triangle ⊿ — smooth edges at present (not stair-step pixels).
    */
   fillTriangle(
     x0: number,
@@ -78,29 +89,25 @@ export class Renderer {
     y2: number,
     colorIndex: number,
   ): void {
-    const minY = Math.max(0, Math.floor(Math.min(y0, y1, y2)))
-    const maxY = Math.min(LOGICAL_H - 1, Math.ceil(Math.max(y0, y1, y2)))
-    for (let y = minY; y <= maxY; y++) {
-      const xs: number[] = []
-      edgeX(x0, y0, x1, y1, y, xs)
-      edgeX(x1, y1, x2, y2, y, xs)
-      edgeX(x2, y2, x0, y0, y, xs)
-      if (xs.length < 2) continue
-      let lo = Math.min(...xs)
-      let hi = Math.max(...xs)
-      lo = Math.max(0, Math.floor(lo))
-      hi = Math.min(LOGICAL_W - 1, Math.ceil(hi))
-      for (let x = lo; x <= hi; x++) this.setPixel(x, y, colorIndex)
-    }
+    this.cmds.push({
+      k: 'tri',
+      x0,
+      y0,
+      x1,
+      y1,
+      x2,
+      y2,
+      c: colorIndex & 7,
+    })
   }
 
-  /** Isosceles pine canopy: tip up, base down (solid triangle) */
+  /** Isosceles pine canopy tip-up */
   fillPine(cx: number, top: number, halfW: number, height: number, colorIndex: number): void {
     this.fillTriangle(cx, top, cx - halfW, top + height, cx + halfW, top + height, colorIndex)
   }
 
   /**
-   * Thick diagonal stroke (CV 「斜めの太い線」).
+   * Thick diagonal stroke — smooth line at present.
    * dir: 1 = ＼, -1 = ／
    */
   drawDiagThick(
@@ -111,18 +118,18 @@ export class Renderer {
     dir: 1 | -1,
     colorIndex: number,
   ): void {
-    const steps = Math.max(1, Math.floor(length))
-    for (let i = 0; i < steps; i++) {
-      const px = Math.floor(x + i * dir)
-      const py = Math.floor(y + i)
-      this.fillRect(px, py, thickness, thickness, colorIndex)
-    }
+    this.cmds.push({
+      k: 'diag',
+      x,
+      y,
+      len: Math.max(1, length),
+      thick: Math.max(1, thickness),
+      dir,
+      c: colorIndex & 7,
+    })
   }
 
-  /**
-   * Soft parallelogram / skewed rect (μPD777 平行四辺形ドットの近似).
-   * Each row shifts by `skew` pixels to the right.
-   */
+  /** True parallelogram (skewed quad), smooth edges */
   fillParallelogram(
     x: number,
     y: number,
@@ -131,10 +138,15 @@ export class Renderer {
     skew: number,
     colorIndex: number,
   ): void {
-    for (let row = 0; row < h; row++) {
-      const shift = Math.floor((skew * row) / Math.max(1, h - 1))
-      this.fillRect(x + shift, y + row, w, 1, colorIndex)
-    }
+    this.cmds.push({
+      k: 'para',
+      x,
+      y,
+      w,
+      h,
+      skew,
+      c: colorIndex & 7,
+    })
   }
 
   drawSprite(pattern: SpritePattern, x: number, y: number, flipX = false): void {
@@ -149,7 +161,6 @@ export class Renderer {
     }
   }
 
-  /** Large 7-segment-ish digit for CV HUD */
   drawBigDigit(n: number, x: number, y: number, colorIndex: number): void {
     const g = BIG_DIGIT[n % 10] ?? BIG_DIGIT[0]!
     for (let row = 0; row < 7; row++) {
@@ -159,7 +170,6 @@ export class Renderer {
     }
   }
 
-  /** Tiny 3x5 digit font for HUD */
   drawText(text: string, x: number, y: number, colorIndex: number): void {
     let cx = x
     for (const ch of text) {
@@ -174,7 +184,6 @@ export class Renderer {
   }
 
   present(): void {
-    this.lctx.putImageData(this.imageData, 0, 0)
     const scale = Math.max(
       1,
       Math.floor(
@@ -188,50 +197,81 @@ export class Renderer {
     const h = LOGICAL_H * scale
     this.screen.width = w
     this.screen.height = h
-    this.sctx.imageSmoothingEnabled = false
-    this.sctx.fillStyle = '#111'
-    this.sctx.fillRect(0, 0, w, h)
-    this.sctx.drawImage(this.logical, 0, 0, w, h)
-  }
-}
+    const ctx = this.sctx
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.imageSmoothingEnabled = false
 
-function hexToRgb(hex: string): [number, number, number] {
-  const n = parseInt(hex.slice(1), 16)
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
-}
-
-function edgeX(
-  x0: number,
-  y0: number,
-  x1: number,
-  y1: number,
-  y: number,
-  out: number[],
-): void {
-  if ((y < y0 && y < y1) || (y > y0 && y > y1)) return
-  if (y0 === y1) {
-    out.push(x0, x1)
-    return
+    for (const cmd of this.cmds) {
+      switch (cmd.k) {
+        case 'clear':
+          ctx.fillStyle = PALETTE[cmd.c]!
+          ctx.fillRect(0, 0, w, h)
+          break
+        case 'rect':
+          ctx.fillStyle = PALETTE[cmd.c]!
+          ctx.fillRect(cmd.x * scale, cmd.y * scale, cmd.w * scale, cmd.h * scale)
+          break
+        case 'tri': {
+          // Smooth ⊿ at display resolution (not logical stair-steps)
+          ctx.fillStyle = PALETTE[cmd.c]!
+          ctx.beginPath()
+          ctx.moveTo(cmd.x0 * scale, cmd.y0 * scale)
+          ctx.lineTo(cmd.x1 * scale, cmd.y1 * scale)
+          ctx.lineTo(cmd.x2 * scale, cmd.y2 * scale)
+          ctx.closePath()
+          ctx.fill()
+          break
+        }
+        case 'diag': {
+          ctx.strokeStyle = PALETTE[cmd.c]!
+          ctx.lineWidth = Math.max(1, cmd.thick * scale)
+          ctx.lineCap = 'square'
+          ctx.lineJoin = 'miter'
+          ctx.beginPath()
+          const x0 = cmd.x * scale
+          const y0 = cmd.y * scale
+          const x1 = (cmd.x + cmd.len * cmd.dir) * scale
+          const y1 = (cmd.y + cmd.len) * scale
+          ctx.moveTo(x0, y0)
+          ctx.lineTo(x1, y1)
+          ctx.stroke()
+          break
+        }
+        case 'para': {
+          ctx.fillStyle = PALETTE[cmd.c]!
+          const x = cmd.x * scale
+          const y = cmd.y * scale
+          const ww = cmd.w * scale
+          const hh = cmd.h * scale
+          const sk = cmd.skew * scale
+          ctx.beginPath()
+          ctx.moveTo(x, y)
+          ctx.lineTo(x + ww, y)
+          ctx.lineTo(x + ww + sk, y + hh)
+          ctx.lineTo(x + sk, y + hh)
+          ctx.closePath()
+          ctx.fill()
+          break
+        }
+      }
+    }
   }
-  const t = (y - y0) / (y1 - y0)
-  out.push(x0 + t * (x1 - x0))
 }
 
 /** 5x7 chunky digits */
 const BIG_DIGIT: number[][] = [
-  [0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110], // 0
-  [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110], // 1
-  [0b01110, 0b10001, 0b00001, 0b00110, 0b01000, 0b10000, 0b11111], // 2
-  [0b01110, 0b10001, 0b00001, 0b00110, 0b00001, 0b10001, 0b01110], // 3
-  [0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010], // 4
-  [0b11111, 0b10000, 0b11110, 0b00001, 0b00001, 0b10001, 0b01110], // 5
-  [0b01110, 0b10000, 0b11110, 0b10001, 0b10001, 0b10001, 0b01110], // 6
-  [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b01000], // 7
-  [0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110], // 8
-  [0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00001, 0b01110], // 9
+  [0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
+  [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110],
+  [0b01110, 0b10001, 0b00001, 0b00110, 0b01000, 0b10000, 0b11111],
+  [0b01110, 0b10001, 0b00001, 0b00110, 0b00001, 0b10001, 0b01110],
+  [0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010],
+  [0b11111, 0b10000, 0b11110, 0b00001, 0b00001, 0b10001, 0b01110],
+  [0b01110, 0b10000, 0b11110, 0b10001, 0b10001, 0b10001, 0b01110],
+  [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b01000],
+  [0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110],
+  [0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00001, 0b01110],
 ]
 
-/** 3x5 bitmap font (bit2=left) */
 const FONT: Record<string, number[]> = {
   ' ': [0, 0, 0, 0, 0],
   '0': [7, 5, 5, 5, 7],
