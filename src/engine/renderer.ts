@@ -54,10 +54,86 @@ export class Renderer {
   }
 
   fillRect(x: number, y: number, w: number, h: number, colorIndex: number): void {
-    for (let yy = 0; yy < h; yy++) {
-      for (let xx = 0; xx < w; xx++) {
-        this.setPixel(x + xx, y + yy, colorIndex)
+    const x0 = Math.floor(x)
+    const y0 = Math.floor(y)
+    const ww = Math.floor(w)
+    const hh = Math.floor(h)
+    for (let yy = 0; yy < hh; yy++) {
+      for (let xx = 0; xx < ww; xx++) {
+        this.setPixel(x0 + xx, y0 + yy, colorIndex)
       }
+    }
+  }
+
+  /**
+   * Filled triangle (stepped / aliased). μPD777-style solid wedge used for pine tops etc.
+   * Points in any order.
+   */
+  fillTriangle(
+    x0: number,
+    y0: number,
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    colorIndex: number,
+  ): void {
+    const minY = Math.max(0, Math.floor(Math.min(y0, y1, y2)))
+    const maxY = Math.min(LOGICAL_H - 1, Math.ceil(Math.max(y0, y1, y2)))
+    for (let y = minY; y <= maxY; y++) {
+      const xs: number[] = []
+      edgeX(x0, y0, x1, y1, y, xs)
+      edgeX(x1, y1, x2, y2, y, xs)
+      edgeX(x2, y2, x0, y0, y, xs)
+      if (xs.length < 2) continue
+      let lo = Math.min(...xs)
+      let hi = Math.max(...xs)
+      lo = Math.max(0, Math.floor(lo))
+      hi = Math.min(LOGICAL_W - 1, Math.ceil(hi))
+      for (let x = lo; x <= hi; x++) this.setPixel(x, y, colorIndex)
+    }
+  }
+
+  /** Isosceles pine canopy: tip up, base down (solid triangle) */
+  fillPine(cx: number, top: number, halfW: number, height: number, colorIndex: number): void {
+    this.fillTriangle(cx, top, cx - halfW, top + height, cx + halfW, top + height, colorIndex)
+  }
+
+  /**
+   * Thick diagonal stroke (CV 「斜めの太い線」).
+   * dir: 1 = ＼, -1 = ／
+   */
+  drawDiagThick(
+    x: number,
+    y: number,
+    length: number,
+    thickness: number,
+    dir: 1 | -1,
+    colorIndex: number,
+  ): void {
+    const steps = Math.max(1, Math.floor(length))
+    for (let i = 0; i < steps; i++) {
+      const px = Math.floor(x + i * dir)
+      const py = Math.floor(y + i)
+      this.fillRect(px, py, thickness, thickness, colorIndex)
+    }
+  }
+
+  /**
+   * Soft parallelogram / skewed rect (μPD777 平行四辺形ドットの近似).
+   * Each row shifts by `skew` pixels to the right.
+   */
+  fillParallelogram(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    skew: number,
+    colorIndex: number,
+  ): void {
+    for (let row = 0; row < h; row++) {
+      const shift = Math.floor((skew * row) / Math.max(1, h - 1))
+      this.fillRect(x + shift, y + row, w, 1, colorIndex)
     }
   }
 
@@ -69,6 +145,16 @@ export class Renderer {
         const c = pattern.pixels[py * pattern.w + sx]!
         if (c < 0) continue
         this.setPixel(x + px, y + py, c)
+      }
+    }
+  }
+
+  /** Large 7-segment-ish digit for CV HUD */
+  drawBigDigit(n: number, x: number, y: number, colorIndex: number): void {
+    const g = BIG_DIGIT[n % 10] ?? BIG_DIGIT[0]!
+    for (let row = 0; row < 7; row++) {
+      for (let col = 0; col < 5; col++) {
+        if (g[row]! & (16 >> col)) this.fillRect(x + col, y + row, 1, 1, colorIndex)
       }
     }
   }
@@ -113,6 +199,37 @@ function hexToRgb(hex: string): [number, number, number] {
   const n = parseInt(hex.slice(1), 16)
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
 }
+
+function edgeX(
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  y: number,
+  out: number[],
+): void {
+  if ((y < y0 && y < y1) || (y > y0 && y > y1)) return
+  if (y0 === y1) {
+    out.push(x0, x1)
+    return
+  }
+  const t = (y - y0) / (y1 - y0)
+  out.push(x0 + t * (x1 - x0))
+}
+
+/** 5x7 chunky digits */
+const BIG_DIGIT: number[][] = [
+  [0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110], // 0
+  [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110], // 1
+  [0b01110, 0b10001, 0b00001, 0b00110, 0b01000, 0b10000, 0b11111], // 2
+  [0b01110, 0b10001, 0b00001, 0b00110, 0b00001, 0b10001, 0b01110], // 3
+  [0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010], // 4
+  [0b11111, 0b10000, 0b11110, 0b00001, 0b00001, 0b10001, 0b01110], // 5
+  [0b01110, 0b10000, 0b11110, 0b10001, 0b10001, 0b10001, 0b01110], // 6
+  [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b01000], // 7
+  [0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110], // 8
+  [0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00001, 0b01110], // 9
+]
 
 /** 3x5 bitmap font (bit2=left) */
 const FONT: Record<string, number[]> = {

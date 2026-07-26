@@ -1,30 +1,23 @@
 import type { CVEngine } from '../../engine/engine'
-import { LOGICAL_H, LOGICAL_W, type Scene, type SpritePattern } from '../../engine/types'
+import { LOGICAL_H, LOGICAL_W, type Scene } from '../../engine/types'
 import { scriptAfterStage } from './adv'
 import { AdvScene } from './advScene'
-import { STAGES, type StageConfig } from './stages'
 import {
-  ANGEL,
-  BIRD,
-  BIRD_FLAP,
-  BOAR,
-  BRANCH,
-  DROPPING,
-  MOSAKU_CHOP_BACK,
-  MOSAKU_CHOP_DOWN,
-  MOSAKU_CHOP_UP,
-  MOSAKU_IDLE,
-  MOSAKU_JUMP,
-  MOSAKU_STUN,
-  MOSAKU_WALK_A,
-  MOSAKU_WALK_B,
-  SNAKE,
-  SNAKE_DIG,
-} from './sprites'
+  C,
+  drawBird,
+  drawBoar,
+  drawBranch,
+  drawDrop,
+  drawMosaku,
+  drawPineTree,
+  drawSnake,
+} from './cvDraw'
+import { STAGES, type StageConfig } from './stages'
 import { TitleScene } from './title'
 
-const GROUND_Y = 52
-const PLAYER_W = 9
+/** Thick green band like Yosaku screenshot */
+const GROUND_Y = 40
+const PLAYER_W = 8
 const PLAYER_H = 9
 const HITS_NEEDED = 7
 const STUN_TIME = 5
@@ -170,10 +163,10 @@ export class MosakuGame implements Scene {
       this.time = 0
       this.flags = new Set()
     }
-    // Two tall pines like CV Yosaku layout
+    // Two pines like CV Yosaku screenshot
     this.trees = [
-      { x: 10, leftHits: 0, rightHits: 0, fallen: false, fallT: 0 },
-      { x: 56, leftHits: 0, rightHits: 0, fallen: false, fallT: 0 },
+      { x: 18, leftHits: 0, rightHits: 0, fallen: false, fallT: 0 },
+      { x: 52, leftHits: 0, rightHits: 0, fallen: false, fallT: 0 },
     ]
     if (this.flags.has('horror_look') && this.stage.night) {
       this.freezeHorror = 0.8
@@ -390,7 +383,7 @@ export class MosakuGame implements Scene {
       this.enemies.push({
         kind: 'boar',
         x: fromLeft ? -10 : LOGICAL_W + 2,
-        y: GROUND_Y - 6,
+        y: GROUND_Y - 7,
         vx: (fromLeft ? 1 : -1) * this.stage.enemySpeed,
         alive: true,
         emerge: 1,
@@ -539,141 +532,86 @@ export class MosakuGame implements Scene {
     }
   }
 
-  private playerSprite(): SpritePattern {
-    if (this.stun > 0) return MOSAKU_STUN
-    if (!this.onGround) return MOSAKU_JUMP
-    if (this.chopPhase === 'up') return MOSAKU_CHOP_UP
-    if (this.chopPhase === 'down') return MOSAKU_CHOP_DOWN
-    if (this.chopPhase === 'back') return MOSAKU_CHOP_BACK
-    if (this.moving) {
-      return Math.floor(this.walkT * 8) % 2 === 0 ? MOSAKU_WALK_A : MOSAKU_WALK_B
-    }
-    return MOSAKU_IDLE
+  private mosakuPhase(): string {
+    if (this.phase === 'death' || this.phase === 'gameover') return 'angel'
+    if (this.stun > 0) return 'stun'
+    if (!this.onGround) return 'jump'
+    if (this.chopPhase === 'up') return 'up'
+    if (this.chopPhase === 'down') return 'down'
+    if (this.chopPhase === 'back') return 'back'
+    if (this.moving) return Math.floor(this.walkT * 8) % 2 === 0 ? 'walk0' : 'walk1'
+    return 'idle'
   }
 
   draw(): void {
     const r = this.eng.renderer
-    const sky = this.stage.night ? 0 : 1
-    r.clear(sky)
+    // Yosaku playfield: black sky always; night = darker ground tint via overlay
+    r.clear(C.sky)
+    r.fillRect(0, GROUND_Y, LOGICAL_W, LOGICAL_H - GROUND_Y, C.ground)
+    if (this.stage.night) {
+      // sparse dark bars for night without leaving CV look
+      for (let x = 0; x < LOGICAL_W; x += 3) r.setPixel(x, GROUND_Y + 1, 0)
+    }
 
-    // distant hills / ground strip like CV playfield
-    r.fillRect(0, 44, LOGICAL_W, 2, this.stage.night ? 0 : 4)
-    r.fillRect(0, GROUND_Y, LOGICAL_W, LOGICAL_H - GROUND_Y, 4)
-    r.fillRect(0, GROUND_Y, LOGICAL_W, 1, this.stage.night ? 0 : 6)
+    for (const t of this.trees) {
+      drawPineTree(r, t.x, GROUND_Y, t.leftHits, t.rightHits, t.fallen, t.fallT)
+    }
 
-    for (const t of this.trees) this.drawTree(t)
-
-    const birdSpr = Math.floor(this.birdFlap * 6) % 2 === 0 ? BIRD : BIRD_FLAP
-    r.drawSprite(birdSpr, Math.floor(this.birdX), 4, this.birdDir < 0)
+    drawBird(
+      r,
+      Math.floor(this.birdX),
+      5,
+      Math.floor(this.birdFlap * 6) % 2 === 0,
+    )
 
     for (const h of this.hazards) {
-      r.drawSprite(h.kind === 'drop' ? DROPPING : BRANCH, Math.floor(h.x), Math.floor(h.y))
+      if (h.kind === 'drop') drawDrop(r, Math.floor(h.x), Math.floor(h.y))
+      else drawBranch(r, Math.floor(h.x), Math.floor(h.y))
     }
 
     for (const e of this.enemies) {
       if (!e.alive) continue
-      const flip = e.vx < 0
-      if (e.kind === 'snake' && e.emerge < 1) {
-        r.drawSprite(SNAKE_DIG, Math.floor(e.x), Math.floor(e.y), flip)
+      if (e.kind === 'boar') {
+        drawBoar(r, Math.floor(e.x), Math.floor(e.y), e.vx < 0)
       } else {
-        r.drawSprite(e.kind === 'boar' ? BOAR : SNAKE, Math.floor(e.x), Math.floor(e.y), flip)
+        drawSnake(r, Math.floor(e.x), Math.floor(e.y), e.emerge < 1)
       }
     }
 
-    if (this.phase === 'death' || this.phase === 'gameover') {
-      r.drawSprite(ANGEL, Math.floor(this.px), Math.floor(this.angelY))
-    } else {
-      const bob = this.moving && this.onGround && this.chopPhase === 'none'
+    const bob =
+      this.moving && this.onGround && this.chopPhase === 'none'
         ? Math.floor(this.walkT * 8) % 2
         : 0
-      const py = Math.floor(this.playerY() + this.jumpOffset) - bob
-      const flash = this.invuln > 0 && Math.floor(this.invuln * 10) % 2 === 0
-      if (!flash) {
-        const spr = this.playerSprite()
-        const drawX =
-          this.facing < 0 && spr.w > 9
-            ? Math.floor(this.px) - (spr.w - 9)
-            : Math.floor(this.px)
-        r.drawSprite(spr, drawX, py, this.facing < 0)
-      }
-      if (this.stun > 0) {
-        r.drawText('!', Math.floor(this.px) + 3, py - 5, 6)
-      }
+    const py =
+      this.phase === 'death' || this.phase === 'gameover'
+        ? Math.floor(this.angelY)
+        : Math.floor(this.playerY() + this.jumpOffset) - bob
+    const flash = this.invuln > 0 && Math.floor(this.invuln * 10) % 2 === 0
+    if (!flash || this.phase === 'death' || this.phase === 'gameover') {
+      drawMosaku(r, Math.floor(this.px), py, this.facing, this.mosakuPhase())
     }
 
-    // HUD
-    r.fillRect(0, 0, LOGICAL_W, 7, 0)
-    r.drawText(`L${this.lives}`, 1, 1, 7)
-    r.drawText(`S${this.score}`, 16, 1, 6)
-    r.drawText(`ST${this.stage.id}`, 48, 1, 5)
+    // HUD like screenshot: big cyan lives + green stage
+    r.drawBigDigit(Math.min(9, Math.max(0, this.lives)), 2, 2, C.hudCyan)
+    r.drawBigDigit(1, 28, 2, C.hudGreen)
+    r.fillRect(35, 5, 3, 2, C.hudGreen) // dash
+    r.drawBigDigit(Math.min(9, this.stage.id), 40, 2, C.hudGreen)
     if (this.mode === 'timeattack') {
-      r.drawText(`${this.time.toFixed(1)}`, 58, 1, 7)
+      r.drawText(`${this.time.toFixed(1)}`, 52, 3, C.hudCyan)
+    } else {
+      r.drawText(`${this.score}`, 52, 3, C.mosaku)
     }
 
-    if (this.phase === 'clear') r.drawText('CLEAR', 26, 28, 7)
+    if (this.phase === 'clear') r.drawText('CLEAR', 26, 28, C.hudCyan)
     if (this.phase === 'gameover') {
-      r.drawText('GAME OVER', 18, 26, 2)
-      r.drawText('ENTER', 28, 34, 7)
+      r.drawText('GAME OVER', 18, 26, C.cut)
+      r.drawText('ENTER', 28, 34, C.hudCyan)
     }
     if (this.freezeHorror > 0) {
-      r.fillRect(0, 20, LOGICAL_W, 1, 0)
-      r.fillRect(0, 40, LOGICAL_W, 1, 0)
+      r.fillRect(0, 20, LOGICAL_W, 1, C.cut)
+      r.fillRect(0, 34, LOGICAL_W, 1, C.cut)
     }
   }
-
-  /** Trunk notches change color as hits accumulate (Yosaku: 変色) */
-  private drawTree(t: Tree): void {
-    const r = this.eng.renderer
-    if (t.fallen) {
-      const lean = Math.floor(Math.min(1, t.fallT) * 14)
-      r.fillRect(t.x - 1, GROUND_Y - 4, 12 + lean, 4, 6)
-      r.fillRect(t.x + lean, GROUND_Y - 7, 8, 3, 4)
-      return
-    }
-
-    // canopy
-    r.fillRect(t.x - 1, 8, 11, 8, 4)
-    r.fillRect(t.x + 1, 5, 7, 5, 4)
-    // trunk
-    r.fillRect(t.x + 3, 16, 3, GROUND_Y - 16, 6)
-
-    // Left / right cut faces — color shifts white→orange→red with hits
-    for (let i = 0; i < HITS_NEEDED; i++) {
-      const y = 28 + i * 3
-      const leftCol = notchColor(t.leftHits, i)
-      const rightCol = notchColor(t.rightHits, i)
-      if (t.leftHits > i) {
-        r.fillRect(t.x, y, 3, 2, leftCol)
-      } else {
-        r.setPixel(t.x + 2, y, 6)
-      }
-      if (t.rightHits > i) {
-        r.fillRect(t.x + 6, y, 3, 2, rightCol)
-      } else {
-        r.setPixel(t.x + 6, y, 6)
-      }
-    }
-
-    // fully cut side: gap in trunk
-    if (t.leftHits >= HITS_NEEDED) {
-      r.fillRect(t.x + 2, 34, 2, 8, skyGap(this.stage.night))
-    }
-    if (t.rightHits >= HITS_NEEDED) {
-      r.fillRect(t.x + 5, 34, 2, 8, skyGap(this.stage.night))
-    }
-  }
-}
-
-function notchColor(hits: number, index: number): number {
-  if (hits <= index) return 6
-  const depth = hits - index
-  if (depth >= 3) return 2 // red deep cut
-  if (depth >= 2) return 6 // orange
-  return 7 // fresh white chip
-}
-
-function skyGap(night: boolean): number {
-  return night ? 0 : 1
 }
 
 function overlap(

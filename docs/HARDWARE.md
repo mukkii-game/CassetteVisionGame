@@ -10,29 +10,36 @@
 | Upscale | Nearest-neighbor, integer scale preferred |
 | Colors | 8 fixed palette entries |
 
-## Palette (approximate Cassette Vision tones)
+## Palette (Yosaku-like vivid 8)
 
-| Index | Name | Hex |
-|-------|------|-----|
-| 0 | Black | `#000000` |
-| 1 | Blue | `#1B3C8C` |
-| 2 | Red | `#C43C28` |
-| 3 | Magenta | `#B84C9A` |
-| 4 | Green | `#2E8B3A` |
-| 5 | Cyan | `#3CB8B0` |
-| 6 | Yellow / Orange | `#E08820` |
-| 7 | White | `#E8E0D0` |
+| Index | Name | Hex | Typical use |
+|-------|------|-----|-------------|
+| 0 | Black | `#000000` | Sky |
+| 1 | Blue | `#2040C0` | Accent |
+| 2 | Red | `#E02820` | Cut / danger |
+| 3 | Magenta | `#E040A8` | Boar (1-color) |
+| 4 | Neon green | `#40E038` | Ground / pine |
+| 5 | Cyan | `#28D0E0` | Axe / HUD |
+| 6 | Orange | `#F08818` | Mosaku (1-color) |
+| 7 | Grey | `#C8C0B0` | Trunk |
 
-Index 6 is the orange accent; index 5 covers blue-cyan.
+## Geometry (μPD777 features we soft-emulate)
+
+実機は矩形ドットに加え、**平行四辺形／斜めドット**や、見た目上の**三角ベタ**が使える（チャンネル表示系由来の斜め分割・タイミングずらし）。ソフトエンジンでも以下を提供:
+
+| API | 用途 |
+|-----|------|
+| `fillTriangle` / `fillPine` | 松の葉など三角ベタ |
+| `drawDiagThick` | 斜めの太い線（イノシシ・フン・翼） |
+| `fillParallelogram` | 平行四辺形ボディ |
 
 ## Sprites (soft)
 
 | Item | Hardware note | Soft engine |
 |------|---------------|-------------|
-| Size | 7×7 (some 8×7) | Prefer 7×7 patterns |
+| Size | 7×7 (some 8×7) | Prefer chunky 1-color silhouettes |
+| Style | Often **1 color per character** | Enforced in `cvDraw.ts` |
 | Max on screen | 25 | Not enforced |
-| Horizontal concurrent | 12 | Not enforced |
-| Same coordinate stack | 5 | Not enforced |
 
 ## Input (abstract)
 

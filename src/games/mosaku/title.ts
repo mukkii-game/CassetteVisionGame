@@ -1,7 +1,7 @@
 import type { CVEngine } from '../../engine/engine'
-import { LOGICAL_W, type Scene } from '../../engine/types'
+import { LOGICAL_H, LOGICAL_W, type Scene } from '../../engine/types'
+import { C, drawBoar, drawMosaku, drawPineTree } from './cvDraw'
 import { MosakuGame } from './game'
-import { HEART, MOSAKU_IDLE, TORIKO } from './sprites'
 
 export interface TitleExtras {
   taResult?: number
@@ -16,11 +16,11 @@ export class TitleScene implements Scene {
   private cursor = 0
   private blink = 0
   private readonly items = ['STORY', 'TIME ATTACK', 'HELP'] as const
+  private showHelp = false
 
   constructor(eng: CVEngine, extras: TitleExtras = {}) {
     this.eng = eng
     this.extras = extras
-    if (extras.ending) this.cursor = 0
   }
 
   enter(): void {
@@ -58,56 +58,50 @@ export class TitleScene implements Scene {
     }
   }
 
-  private showHelp = false
-
   draw(): void {
     const r = this.eng.renderer
-    r.clear(1)
-    r.fillRect(0, 48, LOGICAL_W, 12, 4)
+    const groundY = 40
+    r.clear(C.sky)
+    r.fillRect(0, groundY, LOGICAL_W, LOGICAL_H - groundY, C.ground)
+    drawPineTree(r, 18, groundY, 0, 0, false, 0)
+    drawPineTree(r, 52, groundY, 0, 0, false, 0)
 
     if (this.extras.ending) {
-      r.drawText('MOSAKU', 24, 8, 7)
-      r.drawText('CLEAR', 26, 16, 6)
-      r.drawText(`SCORE ${this.extras.score ?? 0}`, 14, 24, 7)
+      r.drawText('MOSAKU', 24, 4, C.hudCyan)
+      r.drawText('CLEAR', 26, 12, C.hudGreen)
+      r.drawText(`S${this.extras.score ?? 0}`, 22, 20, C.mosaku)
+      drawMosaku(r, 28, 28, 1, 'idle')
       if (this.extras.flags?.has('date')) {
-        r.drawSprite(TORIKO, 20, 32)
-        r.drawSprite(HEART, 34, 34)
-        r.drawSprite(MOSAKU_IDLE, 44, 30)
-        r.drawText('DATE?', 28, 42, 3)
+        r.fillRect(40, 30, 5, 5, C.cut)
+        r.drawText('DATE', 48, 32, C.boar)
       } else if (this.extras.flags?.has('cursed')) {
-        r.drawText('THE WOOD', 20, 34, 2)
-        r.drawText('REMEMBERS', 18, 42, 0)
-      } else {
-        r.drawText('THE END', 24, 36, 7)
+        r.drawText('CURSED', 42, 32, C.cut)
       }
-      if (Math.floor(this.blink * 2) % 2 === 0) r.drawText('ENTER', 28, 52, 7)
+      if (Math.floor(this.blink * 2) % 2 === 0) r.drawText('ENTER', 28, 52, C.hudCyan)
       return
     }
 
-    r.drawText('MOSAKU', 24, 6, 7)
-    r.drawText('CV SOFT', 22, 13, 5)
-    r.drawSprite(MOSAKU_IDLE, 16, 20)
-    r.drawSprite(TORIKO, 50, 22)
+    r.drawText('MOSAKU', 24, 2, C.hudCyan)
+    drawMosaku(r, 28, 28, 1, Math.floor(this.blink * 4) % 2 === 0 ? 'walk0' : 'walk1')
+    drawBoar(r, 48, 33, true)
 
     if (this.showHelp) {
-      r.fillRect(2, 32, 71, 26, 0)
-      r.drawText('AD MOVE', 4, 34, 7)
-      r.drawText('L-CLICK AXE', 4, 40, 7)
-      r.drawText('R-CLICK JUMP', 4, 46, 7)
-      r.drawText('F/SPACE OK', 4, 52, 5)
+      r.fillRect(2, 44, 71, 14, 0)
+      r.drawText('AD MOVE', 4, 46, C.hudGreen)
+      r.drawText('L AXE R JMP', 4, 52, C.hudCyan)
       return
     }
 
-    let y = 34
+    let y = 46
     this.items.forEach((item, i) => {
-      const col = i === this.cursor ? 6 : 7
+      const col = i === this.cursor ? C.mosaku : C.hudGreen
       const mark = i === this.cursor && Math.floor(this.blink * 4) % 2 === 0 ? '>' : ' '
-      r.drawText(`${mark}${item}`, 12, y, col)
-      y += 6
+      r.drawText(`${mark}${item}`, 8, y, col)
+      y += 5
     })
 
     if (this.extras.taResult !== undefined) {
-      r.drawText(`TA ${this.extras.taResult.toFixed(2)}S`, 8, 1, 6)
+      r.drawText(`TA ${this.extras.taResult.toFixed(2)}`, 40, 2, C.mosaku)
     }
   }
 }

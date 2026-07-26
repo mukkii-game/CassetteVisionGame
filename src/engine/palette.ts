@@ -1,17 +1,20 @@
 import type { PaletteIndex } from './types'
 
-/** Cassette Vision approximate 8-color palette */
+/**
+ * Cassette Vision–like vivid 8-color set
+ * (tuned to match Kikori no Yosaku screenshot look)
+ */
 export const PALETTE: readonly string[] = [
-  '#000000', // 0 black
-  '#1B3C8C', // 1 blue
-  '#C43C28', // 2 red
-  '#B84C9A', // 3 magenta
-  '#2E8B3A', // 4 green
-  '#3CB8B0', // 5 cyan / blue-cyan
-  '#E08820', // 6 orange / yellow
-  '#E8E0D0', // 7 white
+  '#000000', // 0 black (sky)
+  '#2040C0', // 1 blue
+  '#E02820', // 2 red
+  '#E040A8', // 3 magenta / pink (boar)
+  '#40E038', // 4 neon green (ground / foliage)
+  '#28D0E0', // 5 cyan (axe / HUD)
+  '#F08818', // 6 orange (Mosaku)
+  '#C8C0B0', // 7 grey / trunk / white-ish
 ] as const
 
 export function clampPalette(i: number): PaletteIndex {
-  return (Math.max(0, Math.min(7, i | 0)) as PaletteIndex)
+  return Math.max(0, Math.min(7, i | 0)) as PaletteIndex
 }
