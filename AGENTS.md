@@ -17,7 +17,8 @@
 
 - Vite + TypeScript + Canvas2D
 - PCキーボード／ゲームパッド優先、スマホタッチ対応済み
-- GitHub: https://github.com/mukkii-game/CassetteVisionGame （private）
+- GitHub: https://github.com/mukkii-game/CassetteVisionGame （public）
+- Pages: https://mukkii-game.github.io/CassetteVisionGame/
 
 ## 現フェーズ
 

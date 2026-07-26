@@ -4,10 +4,8 @@
 
 ## Play
 
-```bash
-npm install
-npm run dev
-```
+- Local: `npm install && npm run dev`
+- Web: https://mukkii-game.github.io/CassetteVisionGame/
 
 ## Controls
 
