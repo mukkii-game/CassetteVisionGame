@@ -5,6 +5,8 @@ import { AdvScene } from './advScene'
 import {
   axeTipX,
   axeTipY,
+  BOAR_H,
+  BOAR_W,
   C,
   drawBird,
   drawBoar,
@@ -417,11 +419,11 @@ export class MosakuGame implements Scene {
     if (this.boarTimer <= 0) {
       this.boarTimer = this.stage.boarInterval * (0.7 + Math.random() * 0.6)
       const fromLeft = Math.random() < 0.5
-      // Fully off-screen entry (boar ~10 wide), then charge inward
+      // Enter from screen edge (端っこ): snout just at the rim, then charge in
       this.enemies.push({
         kind: 'boar',
-        x: fromLeft ? -14 : LOGICAL_W + 4,
-        y: GROUND_Y - 5,
+        x: fromLeft ? 1 - BOAR_W : LOGICAL_W - 1,
+        y: GROUND_Y - BOAR_H,
         vx: (fromLeft ? 1 : -1) * this.stage.enemySpeed,
         alive: true,
         emerge: 1,
@@ -478,8 +480,8 @@ export class MosakuGame implements Scene {
       if (canHit) {
         const tipX = axeTipX(this.px, this.facing, this.chopPhase)
         const tipY = axeTipY(this.playerY() + this.jumpOffset, this.chopPhase)
-        const ew = e.kind === 'boar' ? 9 : 4
-        const eh = e.kind === 'boar' ? 5 : 6
+        const ew = e.kind === 'boar' ? BOAR_W : 4
+        const eh = e.kind === 'boar' ? BOAR_H : 6
         const hitR = e.kind === 'boar' ? 8 : 6
         if (
           Math.abs(tipX - (e.x + ew / 2)) < hitR &&
@@ -518,8 +520,8 @@ export class MosakuGame implements Scene {
       const er = {
         x: e.x,
         y: e.kind === 'snake' ? GROUND_Y - Math.floor(e.emerge * 6) : e.y,
-        w: e.kind === 'boar' ? 9 : 4,
-        h: e.kind === 'boar' ? 5 : Math.max(2, Math.floor(e.emerge * 6)),
+        w: e.kind === 'boar' ? BOAR_W : 4,
+        h: e.kind === 'boar' ? BOAR_H : Math.max(2, Math.floor(e.emerge * 6)),
       }
       if (overlap(pr, er)) {
         if (high) continue

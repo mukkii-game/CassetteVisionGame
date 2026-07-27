@@ -9,8 +9,8 @@ import type { Renderer } from '../../engine/renderer'
 export const C = {
   sky: 0,
   ground: 4,
-  /** Same green as ground — screenshot confirmed */
-  foliage: 4,
+  /** Yellow canopy — user screenshots (labeled sheet) */
+  foliage: 6,
   trunk: 7,
   mosaku: 6,
   axe: 5,
@@ -19,7 +19,9 @@ export const C = {
   bird: 5,
   drop: 6,
   branch: 7,
-  angel: 7,
+  /** Death spirit: mint/cyan body + yellow halo */
+  angel: 5,
+  angelHalo: 6,
   hudCyan: 5,
   hudGreen: 4,
   cutLite: 6,
@@ -31,9 +33,11 @@ const CUT_GAP_H = 4
 
 export const HITS_PER_SIDE = 5
 export const TREE_BLINK_TIME = 0.85
-export const TRUNK_W = 2
+export const TRUNK_W = 3
 export const MOSAKU_W = 7
 export const MOSAKU_H = 10
+export const BOAR_W = 10
+export const BOAR_H = 5
 
 /** Tip X — idle front L; wind-up behind; strike stump; recover front mid (boar) */
 export function axeTipX(px: number, facing: 1 | -1, phase: string): number {
@@ -52,7 +56,7 @@ export function axeTipY(py: number, phase: string): number {
 
 /**
  * Mosaku — 2×2 head, thin torso, open legs; cyan axe.
- * Wind-up / strike / recover USE diag for shaft (spec §3.2).
+ * Death = green/cyan cross + yellow halo (user screenshot), not winged angel.
  */
 export function drawMosaku(
   r: Renderer,
@@ -66,10 +70,16 @@ export function drawMosaku(
   const axe = C.axe
 
   if (phase === 'angel') {
-    r.drawDiagThick(x - 1, y + 1, 3, 2, -1, C.angel)
-    r.drawDiagThick(x + 5, y + 1, 3, 2, 1, C.angel)
-    r.fillRect(x + 2, y + 2, 3, 2, C.angel)
-    r.fillRect(x + 3, y + 4, 1, 3, C.angel)
+    // Yellow halo bar floating above
+    r.fillRect(x + 1, y, 5, 1, C.angelHalo)
+    // Vertical column
+    r.fillRect(x + 3, y + 2, 2, 7, C.angel)
+    // Arms with ends hooked down
+    r.fillRect(x, y + 4, 8, 1, C.angel)
+    r.fillRect(x, y + 5, 1, 2, C.angel)
+    r.fillRect(x + 7, y + 5, 1, 2, C.angel)
+    // Slightly wider base
+    r.fillRect(x + 2, y + 8, 4, 1, C.angel)
     return
   }
 
@@ -96,16 +106,14 @@ export function drawMosaku(
 
   // --- axe ---
   if (phase === 'up') {
-    // 13h: tip high behind head; shaft diag down toward hands
     if (f === 1) {
       r.fillRect(x - 1, y - 2, 2, 2, axe)
-      r.drawDiagThick(x - 1, y - 1, 4, 1, 1, axe) // ＼ toward body
+      r.drawDiagThick(x - 1, y - 1, 4, 1, 1, axe)
     } else {
       r.fillRect(x + 6, y - 2, 2, 2, axe)
-      r.drawDiagThick(x + 7, y - 1, 4, 1, -1, axe) // ／ toward body
+      r.drawDiagThick(x + 7, y - 1, 4, 1, -1, axe)
     }
   } else if (phase === 'down') {
-    // 14h: tip at stump; shaft from mid torso down-forward
     if (f === 1) {
       r.drawDiagThick(x + 3, y + 3, 5, 1, 1, axe)
       r.fillRect(x + MOSAKU_W + 1, y + 7, 2, 2, axe)
@@ -114,7 +122,6 @@ export function drawMosaku(
       r.fillRect(x - 2, y + 7, 2, 2, axe)
     }
   } else if (phase === 'back') {
-    // recover: tip mid-front (boar window), shaft rising diag
     if (f === 1) {
       r.fillRect(x + MOSAKU_W, y + 2, 2, 2, axe)
       r.drawDiagThick(x + 4, y + 2, 3, 1, 1, axe)
@@ -123,7 +130,6 @@ export function drawMosaku(
       r.drawDiagThick(x + 1, y + 2, 3, 1, -1, axe)
     }
   } else {
-    // idle / walk / stun / jump: vertical L in front
     if (f === 1) {
       r.fillRect(x + 5, y + 1, 1, 5, axe)
       r.fillRect(x + 5, y + 5, 2, 1, axe)
@@ -137,8 +143,8 @@ export function drawMosaku(
 }
 
 /**
- * Boar — low pink charge silhouette (Pattern 40h/41h homage + screenshot).
- * Body uses para + diag snout (spec §5).
+ * Boar — low pink charge block (user screenshots).
+ * Body: para + stepped snout; short stub legs (2-frame bob).
  */
 export function drawBoar(
   r: Renderer,
@@ -151,22 +157,31 @@ export function drawBoar(
   if (dying && Math.floor(frame) % 2 === 0) return
   const c = C.boar
   const bob = frame % 2
-  // Low trapezoid body (skew toward charge direction)
-  const skew = facingLeft ? -3 : 3
-  r.fillParallelogram(x + (facingLeft ? 3 : 0), y + 1, 6, 3, skew, c)
-  // Thick mid slab
-  r.fillRect(x + 1, y + 2, 8, 2, c)
-  // Snout / tusk diag at front
+
+  // Core low body — forward-leaning parallelogram
+  const skew = facingLeft ? -2 : 2
+  r.fillParallelogram(x + (facingLeft ? 2 : 1), y + 1, 7, 2, skew, c)
+  // Solid mid slab (blocky look from screenshots)
+  r.fillRect(x + 1, y + 1, 8, 2, c)
+
   if (facingLeft) {
-    r.drawDiagThick(x - 1, y + 1, 3, 2, -1, c)
-    r.fillRect(x, y + 2, 2, 2, c)
-    r.fillRect(x + 2, y + 4 + bob, 1, 1, c)
-    r.fillRect(x + 6, y + 4 + (1 - bob), 1, 1, c)
+    // Pointed snout on left (charge direction)
+    r.fillRect(x, y + 1, 2, 2, c)
+    r.setPixel(x - 1, y + 2, c)
+    r.drawDiagThick(x - 1, y + 1, 2, 1, -1, c)
+    // Short legs (4 stubs / 2 pairs) with run bob
+    r.fillRect(x + 1, y + 3 + bob, 1, 1, c)
+    r.fillRect(x + 3, y + 3 + (1 - bob), 1, 1, c)
+    r.fillRect(x + 6, y + 3 + bob, 1, 1, c)
+    r.fillRect(x + 8, y + 3 + (1 - bob), 1, 1, c)
   } else {
-    r.drawDiagThick(x + 8, y + 1, 3, 2, 1, c)
-    r.fillRect(x + 8, y + 2, 2, 2, c)
-    r.fillRect(x + 2, y + 4 + bob, 1, 1, c)
-    r.fillRect(x + 6, y + 4 + (1 - bob), 1, 1, c)
+    r.fillRect(x + 8, y + 1, 2, 2, c)
+    r.setPixel(x + 10, y + 2, c)
+    r.drawDiagThick(x + 9, y + 1, 2, 1, 1, c)
+    r.fillRect(x + 1, y + 3 + bob, 1, 1, c)
+    r.fillRect(x + 3, y + 3 + (1 - bob), 1, 1, c)
+    r.fillRect(x + 6, y + 3 + bob, 1, 1, c)
+    r.fillRect(x + 8, y + 3 + (1 - bob), 1, 1, c)
   }
 }
 
@@ -194,7 +209,7 @@ export function drawBird(r: Renderer, x: number, y: number, flap: boolean): void
 }
 
 /**
- * Tree — green triangle canopy + 2px pale trunk.
+ * Tree — stepped yellow canopy + pale trunk.
  * Mid hits: base dots recolor. Side fully cut: those dots vanish (gap).
  */
 export function drawPineTree(
@@ -207,31 +222,42 @@ export function drawPineTree(
   fallT: number,
 ): void {
   const tl = trunkX
-  const cx = tl + TRUNK_W / 2
+  const cx = Math.floor(tl + TRUNK_W / 2)
   const max = HITS_PER_SIDE
 
   if (fallen && fallT >= TREE_BLINK_TIME) return
   if (fallen && Math.floor(fallT * 12) % 2 !== 0) return
 
-  // Green canopy (same as ground)
-  r.fillPine(cx, 7, 6, 8, C.foliage)
-  r.fillPine(cx, 13, 8, 9, C.foliage)
+  // Stepped yellow canopy (screenshot tiers) + triangle fill for slant
+  r.fillPine(cx, 6, 3, 5, C.foliage)
+  r.fillPine(cx, 10, 5, 6, C.foliage)
+  r.fillPine(cx, 15, 7, 6, C.foliage)
 
   const trunkTop = 20
   const baseY = groundY - 1
   const leftCut = leftHits >= max
   const rightCut = rightHits >= max
 
-  // Draw trunk column-by-column so cut sides can erase base dots
   for (let col = 0; col < TRUNK_W; col++) {
-    const sideCut = col === 0 ? leftCut : rightCut
-    const hits = col === 0 ? leftHits : rightHits
+    // Outer columns cut with left/right; middle follows whichever side is deeper
+    let sideCut = false
+    let hits = 0
+    if (col === 0) {
+      sideCut = leftCut
+      hits = leftHits
+    } else if (col === TRUNK_W - 1) {
+      sideCut = rightCut
+      hits = rightHits
+    } else {
+      // center column vanishes only when both sides cut (tree falling)
+      sideCut = leftCut && rightCut
+      hits = Math.min(leftHits, rightHits)
+    }
     const bottom = sideCut ? baseY - CUT_GAP_H : baseY
     const h = bottom - trunkTop + 1
     if (h > 0) r.fillRect(tl + col, trunkTop, 1, h, C.trunk)
 
-    // Progressive recolor before the side is fully severed
-    if (!sideCut && hits > 0) {
+    if (!sideCut && hits > 0 && (col === 0 || col === TRUNK_W - 1)) {
       r.setPixel(tl + col, baseY, hits >= 3 ? C.cutDeep : C.cutLite)
       if (hits >= 2) r.setPixel(tl + col, baseY - 1, hits >= 4 ? C.cutDeep : C.cutLite)
       if (hits >= 4) r.setPixel(tl + col, baseY - 2, C.cutDeep)
