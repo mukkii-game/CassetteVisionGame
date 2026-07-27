@@ -9,7 +9,8 @@ import type { Renderer } from '../../engine/renderer'
 export const C = {
   sky: 0,
   ground: 4,
-  foliage: 6,
+  /** Same green as ground — screenshot confirmed */
+  foliage: 4,
   trunk: 7,
   mosaku: 6,
   axe: 5,
@@ -24,6 +25,9 @@ export const C = {
   cutLite: 6,
   cutDeep: 2,
 } as const
+
+/** Height of carved gap when a trunk side is fully cut */
+const CUT_GAP_H = 4
 
 export const HITS_PER_SIDE = 5
 export const TREE_BLINK_TIME = 0.85
@@ -132,7 +136,10 @@ export function drawMosaku(
   if (phase === 'stun') r.fillRect(x + 2, y - 2, 1, 1, C.hudCyan)
 }
 
-/** Boar — para body + diag snout (spec §5) */
+/**
+ * Boar — low pink charge silhouette (Pattern 40h/41h homage + screenshot).
+ * Body uses para + diag snout (spec §5).
+ */
 export function drawBoar(
   r: Renderer,
   x: number,
@@ -143,13 +150,24 @@ export function drawBoar(
 ): void {
   if (dying && Math.floor(frame) % 2 === 0) return
   const c = C.boar
-  const skew = facingLeft ? -2 : 2
-  r.fillParallelogram(x + (facingLeft ? 2 : 0), y + 1, 7, 3, skew, c)
-  if (facingLeft) r.drawDiagThick(x, y + 1, 3, 2, -1, c)
-  else r.drawDiagThick(x + 8, y + 1, 3, 2, 1, c)
   const bob = frame % 2
-  r.fillRect(x + 2, y + 4 + bob, 1, 1, c)
-  r.fillRect(x + 6, y + 4 + (1 - bob), 1, 1, c)
+  // Low trapezoid body (skew toward charge direction)
+  const skew = facingLeft ? -3 : 3
+  r.fillParallelogram(x + (facingLeft ? 3 : 0), y + 1, 6, 3, skew, c)
+  // Thick mid slab
+  r.fillRect(x + 1, y + 2, 8, 2, c)
+  // Snout / tusk diag at front
+  if (facingLeft) {
+    r.drawDiagThick(x - 1, y + 1, 3, 2, -1, c)
+    r.fillRect(x, y + 2, 2, 2, c)
+    r.fillRect(x + 2, y + 4 + bob, 1, 1, c)
+    r.fillRect(x + 6, y + 4 + (1 - bob), 1, 1, c)
+  } else {
+    r.drawDiagThick(x + 8, y + 1, 3, 2, 1, c)
+    r.fillRect(x + 8, y + 2, 2, 2, c)
+    r.fillRect(x + 2, y + 4 + bob, 1, 1, c)
+    r.fillRect(x + 6, y + 4 + (1 - bob), 1, 1, c)
+  }
 }
 
 /** Mamushi — jagged diag stack rising from ground (spec §6) */
@@ -175,7 +193,10 @@ export function drawBird(r: Renderer, x: number, y: number, flap: boolean): void
   }
 }
 
-/** Tree — triangle canopy + 2px trunk + ground-contact color cuts */
+/**
+ * Tree — green triangle canopy + 2px pale trunk.
+ * Mid hits: base dots recolor. Side fully cut: those dots vanish (gap).
+ */
 export function drawPineTree(
   r: Renderer,
   trunkX: number,
@@ -187,27 +208,34 @@ export function drawPineTree(
 ): void {
   const tl = trunkX
   const cx = tl + TRUNK_W / 2
+  const max = HITS_PER_SIDE
 
   if (fallen && fallT >= TREE_BLINK_TIME) return
   if (fallen && Math.floor(fallT * 12) % 2 !== 0) return
 
+  // Green canopy (same as ground)
   r.fillPine(cx, 7, 6, 8, C.foliage)
   r.fillPine(cx, 13, 8, 9, C.foliage)
-  r.fillRect(tl, 20, TRUNK_W, groundY - 20, C.trunk)
 
+  const trunkTop = 20
   const baseY = groundY - 1
-  const max = HITS_PER_SIDE
-  if (leftHits > 0) {
-    const deep = leftHits >= max
-    r.setPixel(tl, baseY, deep ? C.cutDeep : C.cutLite)
-    if (leftHits >= 2) r.setPixel(tl, baseY - 1, deep ? C.cutDeep : C.cutLite)
-    if (leftHits >= 4) r.setPixel(tl, baseY - 2, C.cutDeep)
-  }
-  if (rightHits > 0) {
-    const deep = rightHits >= max
-    r.setPixel(tl + 1, baseY, deep ? C.cutDeep : C.cutLite)
-    if (rightHits >= 2) r.setPixel(tl + 1, baseY - 1, deep ? C.cutDeep : C.cutLite)
-    if (rightHits >= 4) r.setPixel(tl + 1, baseY - 2, C.cutDeep)
+  const leftCut = leftHits >= max
+  const rightCut = rightHits >= max
+
+  // Draw trunk column-by-column so cut sides can erase base dots
+  for (let col = 0; col < TRUNK_W; col++) {
+    const sideCut = col === 0 ? leftCut : rightCut
+    const hits = col === 0 ? leftHits : rightHits
+    const bottom = sideCut ? baseY - CUT_GAP_H : baseY
+    const h = bottom - trunkTop + 1
+    if (h > 0) r.fillRect(tl + col, trunkTop, 1, h, C.trunk)
+
+    // Progressive recolor before the side is fully severed
+    if (!sideCut && hits > 0) {
+      r.setPixel(tl + col, baseY, hits >= 3 ? C.cutDeep : C.cutLite)
+      if (hits >= 2) r.setPixel(tl + col, baseY - 1, hits >= 4 ? C.cutDeep : C.cutLite)
+      if (hits >= 4) r.setPixel(tl + col, baseY - 2, C.cutDeep)
+    }
   }
 }
 

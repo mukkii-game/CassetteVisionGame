@@ -57,6 +57,15 @@ export class Sound {
     this.beep(120, 0.1, 'sawtooth', 0.09)
   }
 
+  /** Boar charge — low rumble as it enters from off-screen */
+  boarCharge(): void {
+    if (this.muted) return
+    this.beep(70, 0.12, 'sawtooth', 0.1)
+    setTimeout(() => this.beep(55, 0.16, 'sawtooth', 0.09), 70)
+    setTimeout(() => this.beep(90, 0.08, 'square', 0.07), 150)
+    setTimeout(() => this.beep(45, 0.2, 'triangle', 0.06), 220)
+  }
+
   stun(): void {
     this.beep(90, 0.2, 'triangle', 0.08)
   }

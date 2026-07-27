@@ -417,15 +417,17 @@ export class MosakuGame implements Scene {
     if (this.boarTimer <= 0) {
       this.boarTimer = this.stage.boarInterval * (0.7 + Math.random() * 0.6)
       const fromLeft = Math.random() < 0.5
+      // Fully off-screen entry (boar ~10 wide), then charge inward
       this.enemies.push({
         kind: 'boar',
-        x: fromLeft ? -10 : LOGICAL_W + 2,
+        x: fromLeft ? -14 : LOGICAL_W + 4,
         y: GROUND_Y - 5,
         vx: (fromLeft ? 1 : -1) * this.stage.enemySpeed,
         alive: true,
         emerge: 1,
         dieT: 0,
       })
+      this.eng.sound.boarCharge()
     }
     if (this.birdTimer <= 0) {
       this.birdTimer = this.stage.birdInterval * (0.8 + Math.random() * 0.5)
