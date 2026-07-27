@@ -651,14 +651,11 @@ export class MosakuGame implements Scene {
       }
     }
 
-    const bob =
-      this.moving && this.onGround && this.chopPhase === 'none'
-        ? Math.floor(this.walkT * 8) % 2
-        : 0
+    // No whole-body walk bob — feet must stay on ground (leg frames handle walk)
     const py =
       this.phase === 'death' || this.phase === 'gameover'
         ? Math.floor(this.angelY)
-        : Math.floor(this.playerY() + this.jumpOffset) - bob
+        : Math.floor(this.playerY() + this.jumpOffset)
     const flash = this.invuln > 0 && Math.floor(this.invuln * 10) % 2 === 0
     if (!flash || this.phase === 'death' || this.phase === 'gameover') {
       drawMosaku(r, Math.floor(this.px), py, this.facing, this.mosakuPhase())

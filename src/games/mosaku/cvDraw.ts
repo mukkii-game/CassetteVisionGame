@@ -70,38 +70,42 @@ export function drawMosaku(
   const axe = C.axe
 
   if (phase === 'angel') {
-    // Yellow halo bar floating above
-    r.fillRect(x + 1, y, 5, 1, C.angelHalo)
-    // Vertical column
-    r.fillRect(x + 3, y + 2, 2, 7, C.angel)
-    // Arms with ends hooked down
-    r.fillRect(x, y + 4, 8, 1, C.angel)
-    r.fillRect(x, y + 5, 1, 2, C.angel)
-    r.fillRect(x + 7, y + 5, 1, 2, C.angel)
-    // Slightly wider base
+    // Yellow ring (わっか) on the head — clear 2-row halo, not just a thin bar
+    r.fillRect(x + 1, y, 6, 1, C.angelHalo)
+    r.setPixel(x, y + 1, C.angelHalo)
+    r.setPixel(x + 7, y + 1, C.angelHalo)
+    r.fillRect(x + 1, y + 2, 6, 1, C.angelHalo)
+    // Blue ghost body (cross) — head sits under the ring
+    r.fillRect(x + 3, y + 3, 2, 6, C.angel)
+    r.fillRect(x, y + 5, 8, 1, C.angel)
+    r.fillRect(x, y + 6, 1, 2, C.angel)
+    r.fillRect(x + 7, y + 6, 1, 2, C.angel)
     r.fillRect(x + 2, y + 8, 4, 1, C.angel)
     return
   }
 
-  // head 2×2
+  // head 2×2 — sprite bottom is y+9 so feet meet ground (playerY = groundY - 10)
   r.fillRect(x + 2, y, 2, 2, body)
   r.fillRect(x + 2, y + 2, 2, 1, body)
   r.fillRect(x + 2, y + 3, 2, 2, body)
 
   if (phase === 'jump') {
-    r.fillRect(x + 1, y + 5, 2, 2, body)
-    r.fillRect(x + 4, y + 5, 2, 2, body)
+    r.fillRect(x + 1, y + 5, 2, 3, body)
+    r.fillRect(x + 4, y + 5, 2, 3, body)
   } else if (phase === 'walk0') {
-    r.fillRect(x + 1, y + 5, 1, 3, body)
-    r.fillRect(x + 1, y + 7, 2, 1, body)
-    r.fillRect(x + 4, y + 5, 1, 2, body)
-  } else if (phase === 'walk1') {
-    r.fillRect(x + 2, y + 5, 1, 2, body)
-    r.fillRect(x + 4, y + 5, 1, 3, body)
-    r.fillRect(x + 3, y + 7, 2, 1, body)
-  } else {
-    r.fillRect(x + 1, y + 5, 1, 4, body)
+    r.fillRect(x + 1, y + 5, 1, 5, body)
+    r.fillRect(x + 1, y + 9, 2, 1, body)
     r.fillRect(x + 4, y + 5, 1, 4, body)
+    r.fillRect(x + 4, y + 9, 1, 1, body)
+  } else if (phase === 'walk1') {
+    r.fillRect(x + 2, y + 5, 1, 4, body)
+    r.fillRect(x + 2, y + 9, 1, 1, body)
+    r.fillRect(x + 4, y + 5, 1, 5, body)
+    r.fillRect(x + 3, y + 9, 2, 1, body)
+  } else {
+    // idle / chop / stun — both feet on ground row (local y+9)
+    r.fillRect(x + 1, y + 5, 1, 5, body)
+    r.fillRect(x + 4, y + 5, 1, 5, body)
   }
 
   // --- axe ---
