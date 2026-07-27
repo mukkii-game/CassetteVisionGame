@@ -32,12 +32,12 @@ const START_LIVES = 6
 const CHOP_MAX_DIST = 4.5
 const CHOP_MIN_DIST = 0
 
-/** Chop phases tuned like Yosaku: lag → swing hit → recover (enemy window) */
-/** Yosaku-like input lag: wind-up visible, then tip strike, then recover */
-const CHOP_UP = 0.18
-const CHOP_DOWN = 0.16
-const CHOP_BACK = 0.2
+/** Yosaku: lag (wind-up diag) → tip strike at stump → recover (boar window) */
+const CHOP_UP = 0.22
+const CHOP_DOWN = 0.14
+const CHOP_BACK = 0.24
 const CHOP_TOTAL = CHOP_UP + CHOP_DOWN + CHOP_BACK
+const BOAR_DIE_TIME = 0.45
 
 type Mode = 'story' | 'timeattack'
 type ChopPhase = 'none' | 'up' | 'down' | 'back'
@@ -58,6 +58,8 @@ interface Enemy {
   alive: boolean
   /** snake emerge 0→1 */
   emerge: number
+  /** blink-out after axe hit; >0 while dying */
+  dieT: number
 }
 
 interface Hazard {
@@ -335,8 +337,8 @@ export class MosakuGame implements Scene {
   }
 
   private tryChop(): void {
-    // Tip position matches drawMosaku (左右対称)
-    const tipX = axeTipX(this.px, this.facing)
+    // Tip at stump during down phase (matches drawMosaku)
+    const tipX = axeTipX(this.px, this.facing, 'down')
     const tipY = axeTipY(this.playerY() + this.jumpOffset, 'down')
     const { sound } = this.eng
     for (const tree of this.trees) {
@@ -409,6 +411,7 @@ export class MosakuGame implements Scene {
         vx: (this.px < x ? -1 : 1) * this.stage.enemySpeed * 0.45,
         alive: true,
         emerge: 0,
+        dieT: 0,
       })
     }
     if (this.boarTimer <= 0) {
@@ -421,6 +424,7 @@ export class MosakuGame implements Scene {
         vx: (fromLeft ? 1 : -1) * this.stage.enemySpeed,
         alive: true,
         emerge: 1,
+        dieT: 0,
       })
     }
     if (this.birdTimer <= 0) {
@@ -445,8 +449,14 @@ export class MosakuGame implements Scene {
     for (const e of this.enemies) {
       if (!e.alive) continue
 
+      // Blink-out after axe kill
+      if (e.dieT > 0) {
+        e.dieT += dt
+        if (e.dieT >= BOAR_DIE_TIME) e.alive = false
+        continue
+      }
+
       if (e.kind === 'snake') {
-        // Rise from underground first, then crawl along the ground
         if (e.emerge < 1) {
           e.emerge = Math.min(1, e.emerge + dt * 1.4)
           e.y = GROUND_Y - 6
@@ -458,18 +468,23 @@ export class MosakuGame implements Scene {
         e.x += e.vx * dt
       }
 
-      const canHitEnemy = this.chopPhase === 'down' || this.chopPhase === 'back'
-      if (canHitEnemy) {
-        const tipX = axeTipX(this.px, this.facing)
+      // Spec §5: boar mainly on recover (back). Snake also on strike tip.
+      const boarWindow = this.chopPhase === 'back'
+      const snakeWindow = this.chopPhase === 'down' || this.chopPhase === 'back'
+      const canHit =
+        e.kind === 'boar' ? boarWindow : snakeWindow
+      if (canHit) {
+        const tipX = axeTipX(this.px, this.facing, this.chopPhase)
         const tipY = axeTipY(this.playerY() + this.jumpOffset, this.chopPhase)
-        const ew = e.kind === 'boar' ? 8 : 4
+        const ew = e.kind === 'boar' ? 9 : 4
         const eh = e.kind === 'boar' ? 5 : 6
+        const hitR = e.kind === 'boar' ? 8 : 6
         if (
-          Math.abs(tipX - (e.x + ew / 2)) < 7 &&
-          Math.abs(tipY - (e.y + eh / 2)) < 9 &&
+          Math.abs(tipX - (e.x + ew / 2)) < hitR &&
+          Math.abs(tipY - (e.y + eh / 2)) < 8 &&
           (e.kind !== 'snake' || e.emerge > 0.35)
         ) {
-          e.alive = false
+          e.dieT = 0.001
           this.score += e.kind === 'boar' ? 50 : 30
           sound.hitEnemy()
         }
@@ -495,13 +510,13 @@ export class MosakuGame implements Scene {
     const high = this.jumpOffset < -10
 
     for (const e of this.enemies) {
-      if (!e.alive) continue
+      if (!e.alive || e.dieT > 0) continue
       // まだ地面下なら当たらない
       if (e.kind === 'snake' && e.emerge < 0.4) continue
       const er = {
         x: e.x,
         y: e.kind === 'snake' ? GROUND_Y - Math.floor(e.emerge * 6) : e.y,
-        w: e.kind === 'boar' ? 8 : 4,
+        w: e.kind === 'boar' ? 9 : 4,
         h: e.kind === 'boar' ? 5 : Math.max(2, Math.floor(e.emerge * 6)),
       }
       if (overlap(pr, er)) {
@@ -623,10 +638,12 @@ export class MosakuGame implements Scene {
           Math.floor(e.x),
           Math.floor(e.y),
           e.vx < 0,
-          Math.floor(this.time * 8),
+          Math.floor(this.time * 8 + e.dieT * 20),
+          e.dieT > 0,
         )
       } else {
-        drawSnake(r, Math.floor(e.x), GROUND_Y - 6, e.emerge)
+        if (e.dieT > 0 && Math.floor(e.dieT * 16) % 2 === 0) continue
+        drawSnake(r, Math.floor(e.x), GROUND_Y, e.emerge)
       }
     }
 
